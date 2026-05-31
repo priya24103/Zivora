@@ -11,7 +11,9 @@ import {
   ShieldCheck, 
   Briefcase, 
   CheckCircle2, 
-  AlertCircle 
+  AlertCircle,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
@@ -29,6 +31,7 @@ export default function Signup() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   
   // Seller Profile State
   const [panNumber, setPanNumber] = useState('');
@@ -401,12 +404,12 @@ export default function Signup() {
               <div className="relative flex items-center">
                 <Lock className="absolute left-4 w-4 h-4 text-[#A48374]" />
                 <input 
-                  type="password" 
+                  type={showPassword ? 'text' : 'password'} 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••" 
                   minLength={6}
-                  className="w-full pl-11 pr-4 py-3 rounded-full text-sm focus:outline-none focus:ring-2 transition-shadow"
+                  className="w-full pl-11 pr-12 py-3 rounded-full text-sm focus:outline-none focus:ring-2 transition-shadow"
                   style={{ 
                     backgroundColor: '#F1EDE6', 
                     color: '#3A2D28',
@@ -414,6 +417,13 @@ export default function Signup() {
                   }}
                   required
                 />
+                <button 
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 p-1 text-[#A48374] hover:text-[#3A2D28] transition-colors cursor-pointer"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
