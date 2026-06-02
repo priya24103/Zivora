@@ -6,10 +6,10 @@ const morgan = require('morgan');
 // Import routes
 const authRoutes = require('./routes/auth.routes');
 const uploadRoutes = require('./routes/upload.routes');
+const productRoutes = require('./routes/product.routes');
 // const inventoryRoutes = require('./routes/inventory.routes');
 // const rfqRoutes = require('./routes/rfq.routes');
 // const auctionRoutes = require('./routes/auction.routes');
-// const paymentRoutes = require('./routes/payment.routes');
 
 const app = express();
 
@@ -23,7 +23,7 @@ app.use(morgan('dev')); // Request logging
 // Mount Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/upload', uploadRoutes);
-// app.use('/api/inventory', inventoryRoutes);
+app.use('/api/products', productRoutes);
 // app.use('/api/rfq', rfqRoutes);
 // app.use('/api/auction', auctionRoutes);
 // app.use('/api/payment', paymentRoutes);
