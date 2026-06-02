@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import BuyerDashboard from './pages/BuyerDashboard';
 import SellerDashboard from './pages/SellerDashboard';
+import AddProduct from './pages/AddProduct';
 import VerificationPending from './pages/VerificationPending';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -21,6 +22,7 @@ function App() {
             <Route path="/signup" element={<Signup />} />
             <Route path="/buyer/dashboard" element={<BuyerDashboard />} />
             <Route path="/seller/dashboard" element={<SellerDashboard />} />
+            <Route path="/seller/add-product" element={<AddProduct />} />
             <Route path="/verification-pending" element={<VerificationPending />} />
           </Routes>
         </main>

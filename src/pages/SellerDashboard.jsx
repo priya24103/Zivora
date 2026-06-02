@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   User, 
@@ -16,6 +16,7 @@ import {
   AlertCircle 
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import axios from 'axios';
 
 export default function SellerDashboard() {
   const navigate = useNavigate();
@@ -41,12 +42,39 @@ export default function SellerDashboard() {
     navigate('/login');
   };
 
-  // Mock listing inventory
-  const mockInventory = [
-    { id: 'i1', name: 'Round Brilliant 2.1ct D IF GIA', price: '$32,500', bids: '5 bids', status: 'In Auction' },
-    { id: 'i2', name: 'Emerald Cut 3.0ct E VVS1 GIA', price: '$48,000', bids: '0 bids', status: 'Fixed Price' },
-    { id: 'i3', name: 'Cushion Cut 1.5ct F VS2 GIA', price: '$12,200', bids: '--', status: 'Draft' }
-  ];
+  const [inventory, setInventory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch listed products from the database on mount
+  useEffect(() => {
+    const fetchInventory = async () => {
+      try {
+        const token = localStorage.getItem('zivora_token');
+        if (!token) {
+          navigate('/login');
+          return;
+        }
+
+        const response = await axios.get('http://localhost:2409/api/products/seller', {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+
+        if (response.data.status === 'success') {
+          setInventory(response.data.data.products);
+        }
+      } catch (err) {
+        console.error('Error fetching inventory:', err);
+        setError('Could not retrieve listings from the database.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInventory();
+  }, [navigate]);
 
   // Map KYC status style
   const kycStatus = user.sellerProfile?.kycStatus || 'pending';
@@ -165,12 +193,12 @@ export default function SellerDashboard() {
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-[#CBAD8D]/10">
                 <Diamond className="w-6 h-6 text-[#A48374] mb-3" />
-                <p className="text-2xl font-light text-[#3A2D28]">12</p>
+                <p className="text-2xl font-light text-[#3A2D28]">{loading ? '...' : inventory.length}</p>
                 <p className="text-xs uppercase tracking-wider text-[#A48374] mt-1">Listed Gems</p>
               </div>
               <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-[#CBAD8D]/10">
                 <Gavel className="w-6 h-6 text-[#A48374] mb-3" />
-                <p className="text-2xl font-light text-[#3A2D28]">2</p>
+                <p className="text-2xl font-light text-[#3A2D28]">{loading ? '...' : inventory.filter(p => p.status === 'on_memo').length}</p>
                 <p className="text-xs uppercase tracking-wider text-[#A48374] mt-1">Live Auctions</p>
               </div>
             </div>
@@ -192,8 +220,8 @@ export default function SellerDashboard() {
                   <h3 className="text-xl text-[#3A2D28]" style={{ fontFamily: 'Georgia, serif', fontWeight: 300 }}>Inventory Catalog</h3>
                 </div>
                 <button 
-                  disabled={kycStatus !== 'approved'}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#3A2D28] text-white text-[10px] font-bold uppercase tracking-wider rounded-full hover:bg-[#A48374] transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  onClick={() => navigate('/seller/add-product')}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#3A2D28] text-white text-[10px] font-bold uppercase tracking-wider rounded-full hover:bg-[#A48374] transition-colors cursor-pointer"
                 >
                   <PlusCircle className="w-4 h-4" />
                   List Diamond
@@ -218,27 +246,60 @@ export default function SellerDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#CBAD8D]/10">
-                    {mockInventory.map((item) => (
-                      <tr key={item.id} className="text-[#3A2D28] hover:bg-[#FBF9F6]/50 transition-colors">
-                        <td className="py-4 font-medium flex items-center gap-2">
-                          <Diamond className="w-3.5 h-3.5 text-[#CBAD8D]" />
-                          {item.name}
-                        </td>
-                        <td className="py-4 font-semibold">{item.price}</td>
-                        <td className="py-4">{item.bids}</td>
-                        <td className="py-4">
-                          <span 
-                            className="inline-block px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider" 
-                            style={{ 
-                              backgroundColor: item.status === 'In Auction' ? 'rgba(203,173,141,0.25)' : item.status === 'Draft' ? '#F1EDE6' : 'rgba(16,185,129,0.1)', 
-                              color: item.status === 'In Auction' ? '#A48374' : item.status === 'Draft' ? '#6B5549' : '#10B981'
-                            }}
-                          >
-                            {item.status}
-                          </span>
+                    {loading ? (
+                      <tr>
+                        <td colSpan="4" className="py-8 text-center text-xs text-[#A48374] italic">
+                          Loading inventory from database...
                         </td>
                       </tr>
-                    ))}
+                    ) : inventory.length === 0 ? (
+                      <tr>
+                        <td colSpan="4" className="py-8 text-center text-xs text-[#A48374] italic">
+                          No products listed yet. Click "List Diamond" to get started.
+                        </td>
+                      </tr>
+                    ) : (
+                      inventory.map((item) => {
+                        const statusMap = {
+                          available: { label: 'Available', bg: 'rgba(16,185,129,0.1)', color: '#10B981' },
+                          on_memo: { label: 'On Memo', bg: 'rgba(203,173,141,0.25)', color: '#A48374' },
+                          sold: { label: 'Sold', bg: '#F1EDE6', color: '#6B5549' }
+                        };
+                        const statusDetails = statusMap[item.status] || { label: item.status, bg: '#F1EDE6', color: '#6B5549' };
+                        
+                        return (
+                          <tr key={item._id} className="text-[#3A2D28] hover:bg-[#FBF9F6]/50 transition-colors">
+                            <td className="py-4 font-medium flex items-center gap-2">
+                              <Diamond className="w-3.5 h-3.5 text-[#CBAD8D]" />
+                              <div>
+                                <p className="font-semibold text-xs md:text-sm">{item.title}</p>
+                                <p className="text-[10px] text-[#A48374] mt-0.5">
+                                  {item.category === 'Diamond' 
+                                    ? `${item.carat}ct • ${item.shape} • ${item.color} ${item.clarity} • ${item.cut} Cut`
+                                    : `${item.jewelryType} • ${item.metalType} • ${item.weightGrams}g`
+                                  }
+                                </p>
+                              </div>
+                            </td>
+                            <td className="py-4 font-semibold text-xs md:text-sm">
+                              ${item.price.toLocaleString()}
+                            </td>
+                            <td className="py-4 text-xs">--</td>
+                            <td className="py-4">
+                              <span 
+                                className="inline-block px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider" 
+                                style={{ 
+                                  backgroundColor: statusDetails.bg, 
+                                  color: statusDetails.color
+                                }}
+                              >
+                                {statusDetails.label}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>

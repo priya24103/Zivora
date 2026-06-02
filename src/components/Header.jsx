@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Search, 
@@ -11,10 +11,39 @@ import {
 export default function Header() {
   const navigate = useNavigate();
   const location = useLocation();
+  
+  const [user, setUser] = useState(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  // Sync user status on render or navigation
+  useEffect(() => {
+    const checkUser = () => {
+      const storedUser = localStorage.getItem('zivora_user');
+      const storedToken = localStorage.getItem('zivora_token');
+      if (storedUser && storedToken) {
+        setUser(JSON.parse(storedUser));
+      } else {
+        setUser(null);
+      }
+    };
+    checkUser();
+    
+    window.addEventListener('storage', checkUser);
+    return () => window.removeEventListener('storage', checkUser);
+  }, [location.pathname]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('zivora_token');
+    localStorage.removeItem('zivora_user');
+    setUser(null);
+    setDropdownOpen(false);
+    navigate('/login');
+  };
 
   // Define pages that should display the simple guest header
   const guestPages = ['/', '/login', '/signup', '/verification-pending'];
-  const isGuestPage = guestPages.includes(location.pathname);
+  // If the user is logged in, show the full premium header instead of the simple guest header
+  const isGuestPage = guestPages.includes(location.pathname) && !user;
 
   // ─── SIMPLE GUEST HEADER (For /, /login, /signup, /verification-pending) ─
   if (isGuestPage) {
@@ -163,22 +192,76 @@ export default function Header() {
 
           <div className="h-4 w-px bg-[#CBAD8D]/30"></div>
 
-          {/* Auth Buttons */}
-          <div className="flex items-center gap-3">
-            <Link 
-              to="/login" 
-              className="text-xs font-semibold hover:text-[#A48374] transition-colors"
-              style={{ color: '#3A2D28' }}
-            >
-              Sign In
-            </Link>
-            <Link 
-              to="/signup" 
-              className="px-5 py-2 rounded-full text-white text-xs font-semibold tracking-wider hover:opacity-90 transition-opacity" 
-              style={{ backgroundColor: '#A48374' }}
-            >
-              Register
-            </Link>
+          {/* Auth Buttons / Profile Avatar */}
+          <div className="flex items-center gap-3 relative">
+            {user ? (
+              <div className="relative">
+                <button 
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold uppercase tracking-wider transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-sm"
+                  style={{ background: 'linear-gradient(135deg, #CBAD8D, #A48374)' }}
+                >
+                  {user.name ? user.name[0] : 'U'}
+                </button>
+                
+                {dropdownOpen && (
+                  <>
+                    {/* Click outside overlay */}
+                    <div className="fixed inset-0 z-40" onClick={() => setDropdownOpen(false)} />
+                    
+                    <div 
+                      className="absolute right-0 mt-3 w-64 bg-white rounded-2xl shadow-xl border border-[#CBAD8D]/15 py-4 z-50 animate-in fade-in slide-in-from-top-2 duration-200"
+                      style={{ color: '#3A2D28' }}
+                    >
+                      <div className="px-4 pb-3 border-b border-[#CBAD8D]/10">
+                        <p className="font-semibold text-sm">{user.name}</p>
+                        <p className="text-xs text-[#A48374] truncate">{user.email}</p>
+                        <span className="inline-flex items-center px-2.5 py-0.5 mt-1.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-[#F1EDE6] text-[#A48374]">
+                          {user.role}
+                        </span>
+                      </div>
+                      
+                      <div className="pt-2">
+                        <button 
+                          onClick={() => {
+                            setDropdownOpen(false);
+                            alert('Profile editing is currently being configured.');
+                          }}
+                          className="w-full text-left px-4 py-2 text-xs hover:bg-[#F7F3EF] transition-colors flex items-center gap-2 cursor-pointer font-medium"
+                        >
+                          Edit Profile
+                        </button>
+
+
+                        <button 
+                          onClick={handleLogout}
+                          className="w-full text-left px-4 py-2 text-xs text-[#E53E3E] hover:bg-[#FFF5F5] transition-colors flex items-center gap-2 border-t border-[#CBAD8D]/10 mt-2 pt-2 cursor-pointer font-medium"
+                        >
+                          Logout
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <>
+                <Link 
+                  to="/login" 
+                  className="text-xs font-semibold hover:text-[#A48374] transition-colors"
+                  style={{ color: '#3A2D28' }}
+                >
+                  Sign In
+                </Link>
+                <Link 
+                  to="/signup" 
+                  className="px-5 py-2 rounded-full text-white text-xs font-semibold tracking-wider hover:opacity-90 transition-opacity" 
+                  style={{ backgroundColor: '#A48374' }}
+                >
+                  Register
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -206,7 +289,7 @@ export default function Header() {
             Request Quote
           </Link>
           <Link 
-            to="/signup?role=seller" 
+            to={user && user.role === 'seller' ? "/seller/add-product" : "/signup?role=seller"} 
             className="hover:text-[#CBAD8D] transition-colors flex items-center gap-1.5"
             style={{ color: '#A48374' }}
           >
