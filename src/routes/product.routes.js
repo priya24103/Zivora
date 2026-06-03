@@ -10,4 +10,13 @@ router.post('/create', protect, restrictTo('seller'), productController.createPr
 // GET /api/products/seller - Get seller's own listings
 router.get('/seller', protect, restrictTo('seller'), productController.getSellerProducts);
 
+// GET /api/products - Get all public products
+router.get('/', productController.getAllProducts);
+
+// PATCH /api/products/:id/status - Update status (seller only)
+router.patch('/:id/status', protect, restrictTo('seller'), productController.updateProductStatus);
+
+// DELETE /api/products/:id - Delete product (seller only)
+router.delete('/:id', protect, restrictTo('seller'), productController.deleteProduct);
+
 module.exports = router;

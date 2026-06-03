@@ -92,3 +92,83 @@ exports.getSellerProducts = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Get all available products (public)
+// @route   GET /api/products
+// @access  Public
+exports.getAllProducts = async (req, res, next) => {
+  try {
+    const { category, shape, limit } = req.query;
+    const filter = { status: 'available' };
+    
+    if (category) filter.category = category;
+    if (shape) filter.shape = shape;
+
+    const products = await Product.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(limit ? parseInt(limit, 10) : 50);
+
+    res.status(200).json({
+      status: 'success',
+      results: products.length,
+      data: {
+        products
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update product status
+// @route   PATCH /api/products/:id/status
+// @access  Private (Seller only)
+exports.updateProductStatus = async (req, res, next) => {
+  try {
+    const { status } = req.body;
+    const product = await Product.findOneAndUpdate(
+      { _id: req.params.id, sellerId: req.user._id },
+      { status },
+      { new: true, runValidators: true }
+    );
+
+    if (!product) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Product not found or not authorized'
+      });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: { product }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete a product
+// @route   DELETE /api/products/:id
+// @access  Private (Seller only)
+exports.deleteProduct = async (req, res, next) => {
+  try {
+    const product = await Product.findOneAndDelete({ _id: req.params.id, sellerId: req.user._id });
+
+    if (!product) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Product not found or not authorized'
+      });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Product deleted successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+

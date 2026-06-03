@@ -7,9 +7,9 @@ const morgan = require('morgan');
 const authRoutes = require('./routes/auth.routes');
 const uploadRoutes = require('./routes/upload.routes');
 const productRoutes = require('./routes/product.routes');
-// const inventoryRoutes = require('./routes/inventory.routes');
-// const rfqRoutes = require('./routes/rfq.routes');
-// const auctionRoutes = require('./routes/auction.routes');
+const auctionRoutes = require('./routes/auction.routes');
+const rfqRoutes = require('./routes/rfq.routes');
+const conversationRoutes = require('./routes/conversation.routes');
 
 const app = express();
 
@@ -24,8 +24,9 @@ app.use(morgan('dev')); // Request logging
 app.use('/api/auth', authRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/products', productRoutes);
-// app.use('/api/rfq', rfqRoutes);
-// app.use('/api/auction', auctionRoutes);
+app.use('/api/auctions', auctionRoutes);
+app.use('/api/rfq', rfqRoutes);
+app.use('/api/conversations', conversationRoutes);
 // app.use('/api/payment', paymentRoutes);
 
 // Health check endpoint
