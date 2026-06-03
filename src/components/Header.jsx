@@ -19,6 +19,14 @@ export default function Header() {
   const location = useLocation();
   
   const [user, setUser] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([
@@ -171,12 +179,14 @@ export default function Header() {
           </div>
 
           {/* Search bar tailored for the seller */}
-          <div className="hidden md:flex flex-1 max-w-xl">
+          <form onSubmit={handleSearchSubmit} className="hidden md:flex flex-1 max-w-xl">
             <div className="relative w-full flex items-center">
               <Search className="absolute left-4 w-4 h-4 text-[#A48374]" />
               <input 
                 type="text" 
                 placeholder="Search SKU, listings, active bids, RFQs..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-11 pr-4 py-2.5 rounded-full text-xs focus:outline-none focus:ring-1 transition-shadow"
                 style={{ 
                   backgroundColor: '#F1EDE6', 
@@ -187,7 +197,7 @@ export default function Header() {
                 }}
               />
             </div>
-          </div>
+          </form>
 
           {/* Right Utility Icons */}
           <div className="flex items-center gap-5 lg:gap-6">
@@ -403,12 +413,14 @@ export default function Header() {
         </div>
 
         {/* Center: Search Bar */}
-        <div className="hidden md:flex flex-1 max-w-xl">
+        <form onSubmit={handleSearchSubmit} className="hidden md:flex flex-1 max-w-xl">
           <div className="relative w-full flex items-center">
             <Search className="absolute left-4 w-4 h-4 text-[#A48374]" />
             <input 
               type="text" 
               placeholder="Search diamonds, jewelry, auctions..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-11 pr-4 py-2.5 rounded-full text-xs focus:outline-none focus:ring-1 transition-shadow"
               style={{ 
                 backgroundColor: '#F1EDE6', 
@@ -419,7 +431,7 @@ export default function Header() {
               }}
             />
           </div>
-        </div>
+        </form>
 
         {/* Right Side: Navigation Actions & Auth */}
         <div className="flex items-center gap-5 lg:gap-6">
@@ -527,10 +539,10 @@ export default function Header() {
         }}
       >
         <div className="flex items-center gap-8 lg:gap-12 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#6B5549]">
-          <Link to="/marketplace/diamonds" className="hover:text-[#CBAD8D] transition-colors">
+          <Link to="/products?category=Diamond" className="hover:text-[#CBAD8D] transition-colors">
             Diamonds
           </Link>
-          <Link to="/marketplace/jewelry" className="hover:text-[#CBAD8D] transition-colors">
+          <Link to="/products?category=Jewelry" className="hover:text-[#CBAD8D] transition-colors">
             Jewelry
           </Link>
           <Link to="/auctions" className="hover:text-[#CBAD8D] transition-colors">

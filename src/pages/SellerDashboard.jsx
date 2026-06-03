@@ -378,7 +378,7 @@ export default function SellerDashboard() {
           </div>
           <div className="flex items-center gap-3">
             <button 
-              onClick={fetchInventory}
+              onClick={fetchDashboardData}
               className="p-3 rounded-full border border-[#CBAD8D]/30 text-[#A48374] hover:bg-white hover:text-[#3A2D28] transition-all cursor-pointer"
               title="Refresh Data"
             >
@@ -723,6 +723,7 @@ export default function SellerDashboard() {
                         <th className="pb-3 pl-2">Stone / Jewelry Info</th>
                         <th className="pb-3">Base Price</th>
                         <th className="pb-3">Type</th>
+                        <th className="pb-3">Stock</th>
                         <th className="pb-3">Listing Status</th>
                         <th className="pb-3 text-right pr-2">Actions</th>
                       </tr>
@@ -730,13 +731,13 @@ export default function SellerDashboard() {
                     <tbody className="divide-y divide-[#CBAD8D]/10">
                       {loading ? (
                         <tr>
-                          <td colSpan="5" className="py-12 text-center text-xs text-[#A48374] italic">
+                          <td colSpan="6" className="py-12 text-center text-xs text-[#A48374] italic">
                             Connecting to database...
                           </td>
                         </tr>
                       ) : filteredInventory.length === 0 ? (
                         <tr>
-                          <td colSpan="5" className="py-12 text-center text-xs text-[#A48374] italic">
+                          <td colSpan="6" className="py-12 text-center text-xs text-[#A48374] italic">
                             No listings match your search criteria.
                           </td>
                         </tr>
@@ -773,6 +774,10 @@ export default function SellerDashboard() {
                               {/* Category */}
                               <td className="py-4 text-xs font-semibold uppercase tracking-wider text-[#A48374]">
                                 {item.category}
+                              </td>
+                              {/* Stock */}
+                              <td className="py-4 text-xs font-semibold text-[#3A2D28]">
+                                {item.stock !== undefined ? item.stock : 1}
                               </td>
                               {/* Status Badge */}
                               <td className="py-4">

@@ -7,6 +7,8 @@ import SellerDashboard from './pages/SellerDashboard';
 import AddProduct from './pages/AddProduct';
 import VerificationPending from './pages/VerificationPending';
 import CreateRfq from './pages/CreateRfq';
+import Products from './pages/Products';
+import ProductDetail from './pages/ProductDetail';
 import Header from './components/Header';
 import Footer from './components/Footer';
 
@@ -26,6 +28,8 @@ function App() {
             <Route path="/seller/add-product" element={<AddProduct />} />
             <Route path="/rfq/create" element={<CreateRfq />} />
             <Route path="/verification-pending" element={<VerificationPending />} />
+            <Route path="/products" element={<Products />} />
+            <Route path="/products/:id" element={<ProductDetail />} />
           </Routes>
         </main>
         
