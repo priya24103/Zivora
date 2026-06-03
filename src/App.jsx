@@ -6,6 +6,7 @@ import BuyerDashboard from './pages/BuyerDashboard';
 import SellerDashboard from './pages/SellerDashboard';
 import AddProduct from './pages/AddProduct';
 import VerificationPending from './pages/VerificationPending';
+import CreateRfq from './pages/CreateRfq';
 import Header from './components/Header';
 import Footer from './components/Footer';
 
@@ -23,6 +24,7 @@ function App() {
             <Route path="/buyer/dashboard" element={<BuyerDashboard />} />
             <Route path="/seller/dashboard" element={<SellerDashboard />} />
             <Route path="/seller/add-product" element={<AddProduct />} />
+            <Route path="/rfq/create" element={<CreateRfq />} />
             <Route path="/verification-pending" element={<VerificationPending />} />
           </Routes>
         </main>

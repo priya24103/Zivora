@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, Sparkles, ShieldCheck, Gavel, MessageCircle, TrendingUp, Award, Diamond, ChevronDown, Play } from "lucide-react";
 import { motion, useScroll, useTransform } from "motion/react";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import ProductCard from "../components/ProductCard";
+import axios from "axios";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -104,6 +105,32 @@ export default function Home() {
   const heroOpacity = useTransform(scrollYProgress, [0, 0.6], [1, 0]);
 
   const [activeCategory, setActiveCategory] = useState(0);
+  const [featuredDiamondsList, setFeaturedDiamondsList] = useState(featuredDiamonds);
+
+  useEffect(() => {
+    const fetchFeatured = async () => {
+      try {
+        const response = await axios.get("http://localhost:2409/api/products?limit=4");
+        if (response.data.status === "success" && response.data.data.products.length > 0) {
+          const mapped = response.data.data.products.map(p => ({
+            id: p._id,
+            name: p.title,
+            price: p.price,
+            image: p.images && p.images.length > 0 ? p.images[0] : "https://images.unsplash.com/photo-1605100804567-1ffe942b5cd6?w=1920",
+            carat: p.carat || 1.0,
+            cut: p.cut || "Excellent",
+            color: p.color || "D",
+            clarity: p.clarity || "VVS1",
+            certification: p.certificateLab || "None"
+          }));
+          setFeaturedDiamondsList(mapped);
+        }
+      } catch (err) {
+        console.error("Error fetching featured diamonds:", err);
+      }
+    };
+    fetchFeatured();
+  }, []);
 
   return (
     <div style={{ background: "#F7F3EF" }}>
@@ -301,7 +328,7 @@ export default function Home() {
           </motion.div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {featuredDiamonds.map((diamond, i) => (
+            {featuredDiamondsList.map((diamond, i) => (
               <motion.div key={diamond.id} variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true }} custom={i}>
                 <ProductCard {...diamond} />
               </motion.div>
