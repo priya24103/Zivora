@@ -1,4 +1,4 @@
-const Conversation = require('../models/Conversation');
+const { Conversation, Message } = require('../models/Conversation');
 const User = require('../models/User');
 
 // @desc    Get user's conversations
@@ -8,16 +8,38 @@ exports.getConversations = async (req, res, next) => {
   try {
     const userId = req.user._id;
 
+    // Find all conversations the user is participating in
     const conversations = await Conversation.find({
       participants: userId
     })
     .populate('participants', 'name email role phone')
     .sort({ updatedAt: -1 });
 
+    // For each conversation, fetch its messages and format it for the frontend
+    const formattedConversations = await Promise.all(
+      conversations.map(async (conv) => {
+        // Fetch messages for this conversation
+        const messages = await Message.find({ conversationId: conv._id }).sort({ createdAt: 1 });
+        
+        // Convert Mongoose document to plain object
+        const convObj = conv.toObject();
+        
+        // Map fields to match the old schema structure for frontend backward compatibility
+        convObj.messages = messages;
+        convObj.lastMsg = conv.lastMessage?.text || '';
+        
+        // Calculate unread boolean based on unreadCounts map
+        const userUnreadCount = conv.unreadCounts ? (conv.unreadCounts.get(userId.toString()) || 0) : 0;
+        convObj.unread = userUnreadCount > 0;
+
+        return convObj;
+      })
+    );
+
     res.status(200).json({
       status: 'success',
-      results: conversations.length,
-      data: { conversations }
+      results: formattedConversations.length,
+      data: { conversations: formattedConversations }
     });
   } catch (error) {
     next(error);
@@ -56,28 +78,58 @@ exports.sendMessage = async (req, res, next) => {
 
     // Create new conversation if none exists
     if (!conversation) {
-      conversation = await Conversation.create({
+      conversation = new Conversation({
         participants: [senderId, recipientId],
-        lastMsg: text,
-        messages: [],
-        unread: true
+        productId: null,
+        lastMessage: {
+          text: '',
+          senderId: senderId,
+          timestamp: new Date()
+        },
+        unreadCounts: new Map()
       });
     }
 
-    const newMessage = {
-      senderId,
-      senderName,
+    // Save/update lastMessage metadata
+    conversation.lastMessage = {
       text,
-      time: new Date()
+      senderId,
+      timestamp: new Date()
     };
 
-    conversation.messages.push(newMessage);
-    conversation.lastMsg = text;
-    conversation.unread = true;
+    // Increment unread count for recipient (participants who are not the sender)
+    conversation.participants.forEach(participantId => {
+      const pStr = participantId.toString();
+      if (pStr !== senderId.toString()) {
+        const currentCount = conversation.unreadCounts.get(pStr) || 0;
+        conversation.unreadCounts.set(pStr, currentCount + 1);
+      }
+    });
+
     await conversation.save();
+
+    // Create and save new message document
+    const newMessage = await Message.create({
+      conversationId: conversation._id,
+      senderId,
+      text,
+      isRead: false
+    });
+
+    // Fetch all messages for the conversation to return
+    const messages = await Message.find({ conversationId: conversation._id }).sort({ createdAt: 1 });
 
     const populatedConversation = await Conversation.findById(conversation._id)
       .populate('participants', 'name email role phone');
+
+    // Format the conversation object to match what the frontend expects
+    const convObj = populatedConversation.toObject();
+    convObj.messages = messages;
+    convObj.lastMsg = text;
+    
+    // For the recipient/sender unread calculation
+    const userUnreadCount = populatedConversation.unreadCounts ? (populatedConversation.unreadCounts.get(senderId.toString()) || 0) : 0;
+    convObj.unread = userUnreadCount > 0;
 
     // Broadcast message via Socket.io
     const io = req.app.get('io');
@@ -94,7 +146,7 @@ exports.sendMessage = async (req, res, next) => {
     res.status(200).json({
       status: 'success',
       message: 'Message sent successfully',
-      data: { conversation: populatedConversation }
+      data: { conversation: convObj }
     });
   } catch (error) {
     next(error);

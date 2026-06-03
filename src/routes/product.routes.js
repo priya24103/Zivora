@@ -13,6 +13,9 @@ router.get('/seller', protect, restrictTo('seller'), productController.getSeller
 // GET /api/products - Get all public products
 router.get('/', productController.getAllProducts);
 
+// GET /api/products/:id - Get a single product by ID
+router.get('/:id', productController.getProductById);
+
 // PATCH /api/products/:id/status - Update status (seller only)
 router.patch('/:id/status', protect, restrictTo('seller'), productController.updateProductStatus);
 
