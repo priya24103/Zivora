@@ -10,6 +10,8 @@ const productRoutes = require('./routes/product.routes');
 const auctionRoutes = require('./routes/auction.routes');
 const rfqRoutes = require('./routes/rfq.routes');
 const conversationRoutes = require('./routes/conversation.routes');
+const cartRoutes = require('./routes/cart.routes');
+const orderRoutes = require('./routes/order.routes');
 
 const app = express();
 
@@ -27,6 +29,8 @@ app.use('/api/products', productRoutes);
 app.use('/api/auctions', auctionRoutes);
 app.use('/api/rfq', rfqRoutes);
 app.use('/api/conversations', conversationRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/orders', orderRoutes);
 // app.use('/api/payment', paymentRoutes);
 
 // Health check endpoint
