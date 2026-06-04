@@ -63,9 +63,30 @@ export default function ProductDetail() {
     if (id) fetchProduct();
   }, [id]);
 
-  const handleAddToCart = () => {
-    setAddedToCart(true);
-    setTimeout(() => setAddedToCart(false), 3000);
+  const handleAddToCart = async () => {
+    try {
+      const token = localStorage.getItem('zivora_token');
+      if (!token) {
+        navigate('/login');
+        return;
+      }
+
+      const response = await axios.post(`${API_BASE}/cart/add`, {
+        productId: product._id,
+        quantity: 1
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.status === 'success') {
+        setAddedToCart(true);
+        window.dispatchEvent(new Event('storage'));
+        setTimeout(() => setAddedToCart(false), 3000);
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || 'Could not add item to cart');
+    }
   };
 
   const handleSendInquiry = async (e) => {

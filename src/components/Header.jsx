@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import axios from 'axios';
 import { 
   Search, 
   Heart, 
@@ -20,6 +21,36 @@ export default function Header() {
   
   const [user, setUser] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [cartCount, setCartCount] = useState(0);
+
+  const fetchCartCount = async () => {
+    try {
+      const token = localStorage.getItem('zivora_token');
+      if (!token) {
+        setCartCount(0);
+        return;
+      }
+      const response = await axios.get('http://localhost:2409/api/cart', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.status === 'success' && response.data.data.cart) {
+        const items = response.data.data.cart.items || [];
+        const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+        setCartCount(totalItems);
+      } else {
+        setCartCount(0);
+      }
+    } catch (err) {
+      console.error('Error fetching cart count:', err);
+      setCartCount(0);
+    }
+  };
+
+  useEffect(() => {
+    fetchCartCount();
+    window.addEventListener('storage', fetchCartCount);
+    return () => window.removeEventListener('storage', fetchCartCount);
+  }, [location.pathname, user]);
   
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -443,14 +474,19 @@ export default function Header() {
             <button className="hover:text-[#3A2D28] transition-colors relative p-1 cursor-pointer">
               <Heart className="w-[18px] h-[18px]" />
             </button>
-            <button className="hover:text-[#3A2D28] transition-colors relative p-1 cursor-pointer">
+            <button 
+              onClick={() => navigate('/cart')}
+              className="hover:text-[#3A2D28] transition-colors relative p-1 cursor-pointer"
+            >
               <ShoppingBag className="w-[18px] h-[18px]" />
-              <span 
-                className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 rounded-full text-[9px] font-bold text-white flex items-center justify-center"
-                style={{ backgroundColor: '#A48374' }}
-              >
-                3
-              </span>
+              {cartCount > 0 && (
+                <span 
+                  className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 rounded-full text-[9px] font-bold text-white flex items-center justify-center animate-pulse"
+                  style={{ backgroundColor: '#A48374' }}
+                >
+                  {cartCount}
+                </span>
+              )}
             </button>
           </div>
 
@@ -486,6 +522,16 @@ export default function Header() {
                       </div>
                       
                       <div className="pt-2">
+                        <button 
+                          onClick={() => {
+                            setDropdownOpen(false);
+                            navigate('/buyer/dashboard');
+                          }}
+                          className="w-full text-left px-4 py-2 text-xs hover:bg-[#F7F3EF] transition-colors flex items-center gap-2 cursor-pointer font-medium"
+                        >
+                          Buyer Dashboard
+                        </button>
+
                         <button 
                           onClick={() => {
                             setDropdownOpen(false);
