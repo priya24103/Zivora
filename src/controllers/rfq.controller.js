@@ -5,14 +5,14 @@ const RFQ = require('../models/RFQ');
 // @access  Private (Buyer only)
 exports.createRFQ = async (req, res, next) => {
   try {
-    const { shape, carat, color, clarity, budget } = req.body;
+    const { shape, carat, color, clarity, budget, deadline } = req.body;
     const buyerId = req.user._id;
     const buyerName = req.user.name;
 
-    if (!shape || !carat || !color || !clarity || !budget) {
+    if (!shape || !carat || !color || !clarity || !budget || !deadline) {
       return res.status(400).json({
         status: 'error',
-        message: 'All specification fields and budget are required'
+        message: 'All specification fields, budget, and deadline are required'
       });
     }
 
@@ -24,6 +24,7 @@ exports.createRFQ = async (req, res, next) => {
       color,
       clarity,
       budget,
+      deadline,
       status: 'pending',
       quotes: []
     });
@@ -79,14 +80,14 @@ exports.getPendingRFQs = async (req, res, next) => {
 exports.submitQuote = async (req, res, next) => {
   try {
     const rfqId = req.params.id;
-    const { quotePrice, message } = req.body;
+    const { quotePrice, message, productId } = req.body;
     const sellerId = req.user._id;
     const sellerName = req.user.name;
 
-    if (!quotePrice || !message) {
+    if (!quotePrice || !message || !productId) {
       return res.status(400).json({
         status: 'error',
-        message: 'Quote price and message details are required'
+        message: 'Quote price, message details, and product are required'
       });
     }
 
@@ -102,6 +103,7 @@ exports.submitQuote = async (req, res, next) => {
     const newQuote = {
       sellerId,
       sellerName,
+      productId,
       quotePrice,
       message,
       date: new Date()

@@ -26,9 +26,12 @@ io.on('connection', (socket) => {
   
 });
 
+const rfqCron = require('./jobs/rfqCron');
+
 const startServer = async () => {
   try {
     await connectDB();
+    rfqCron.init();
     server.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });

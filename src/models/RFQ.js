@@ -75,8 +75,8 @@ const rfqSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['open', 'closed', 'awarded'], // 'open' accepts bids, 'awarded' means winner chosen
-    default: 'open'
+    enum: ['pending', 'submitted', 'open', 'closed', 'awarded'], // 'open' accepts bids, 'awarded' means winner chosen
+    default: 'pending'
   },
   winnerSeller: { 
     type: mongoose.Schema.Types.ObjectId,
