@@ -475,10 +475,10 @@ export default function BuyerDashboard() {
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-[#3A2D28]">{rfq.shape} Request</span>
-                              <span className="text-xs text-[#A48374]">• {rfq.carat} {rfq.color} {rfq.clarity}</span>
+                              <span className="text-xs text-[#A48374]">• {rfq.carat}ct {rfq.color} {rfq.clarity}</span>
                             </div>
                             <p className="text-xs text-[#A48374] mt-1">
-                              Requested on {new Date(rfq.createdAt).toLocaleDateString()} • Budget: <strong className="text-[#3A2D28]">{rfq.budget}</strong>
+                              Requested on {new Date(rfq.createdAt).toLocaleDateString()} • Budget: <strong className="text-[#3A2D28]">₹{Number(rfq.budget).toLocaleString('en-IN')}</strong>
                             </p>
                           </div>
                           
@@ -486,11 +486,20 @@ export default function BuyerDashboard() {
                             <span 
                               className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full"
                               style={{ 
-                                backgroundColor: rfq.status === 'submitted' ? 'rgba(164,131,116,0.15)' : 'rgba(203,173,141,0.15)',
-                                color: '#A48374'
+                                backgroundColor: 
+                                  rfq.status === 'awarded' ? 'rgba(16,185,129,0.15)' :
+                                  rfq.status === 'closed' ? 'rgba(239,68,68,0.15)' :
+                                  rfq.status === 'submitted' ? 'rgba(164,131,116,0.15)' : 'rgba(203,173,141,0.15)',
+                                color: 
+                                  rfq.status === 'awarded' ? '#10B981' :
+                                  rfq.status === 'closed' ? '#EF4444' : '#A48374'
                               }}
                             >
-                              {rfq.status === 'submitted' ? `Offers Received (${rfq.quotes.length})` : 'Pending Review'}
+                              {
+                                rfq.status === 'awarded' ? 'Awarded' :
+                                rfq.status === 'closed' ? 'Closed' :
+                                rfq.status === 'submitted' ? `Offers Received (${rfq.quotes.length})` : 'Pending Review'
+                              }
                             </span>
                             {hasQuotes && (
                               <button 
@@ -515,18 +524,31 @@ export default function BuyerDashboard() {
                               className="overflow-hidden mt-4 pt-4 border-t border-[#CBAD8D]/10 space-y-3"
                             >
                               <p className="text-[10px] font-bold text-[#A48374] uppercase tracking-wider">Seller Offers:</p>
-                              {rfq.quotes.map((q, idx) => (
-                                <div key={idx} className="p-4 bg-white border border-[#CBAD8D]/10 rounded-2xl text-xs flex justify-between items-start gap-4 shadow-[0_4px_12px_rgba(0,0,0,0.01)]">
-                                  <div>
-                                    <p className="font-bold text-[#3A2D28]">{q.sellerName}</p>
-                                    <p className="text-[#6B5549] mt-1 leading-relaxed">{q.message}</p>
+                              {rfq.quotes.map((q, idx) => {
+                                const isWinner = rfq.winningQuoteId && q._id.toString() === rfq.winningQuoteId.toString();
+                                return (
+                                  <div 
+                                    key={idx} 
+                                    className={`p-4 bg-white border rounded-2xl text-xs flex justify-between items-start gap-4 shadow-[0_4px_12px_rgba(0,0,0,0.01)] ${isWinner ? 'border-green-500 bg-green-50/10' : 'border-[#CBAD8D]/10'}`}
+                                  >
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <p className="font-bold text-[#3A2D28]">{q.sellerName}</p>
+                                        {isWinner && (
+                                          <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[8px] font-bold uppercase tracking-wider">
+                                            🏆 Winner
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-[#6B5549] mt-1 leading-relaxed">{q.message}</p>
+                                    </div>
+                                    <div className="text-right flex-shrink-0">
+                                      <p className="font-bold text-sm text-[#3A2D28]">₹{q.quotePrice.toLocaleString('en-IN')}</p>
+                                      <span className="text-[9px] text-[#A48374] block mt-1">{new Date(q.createdAt || q.date).toLocaleDateString()}</span>
+                                    </div>
                                   </div>
-                                  <div className="text-right flex-shrink-0">
-                                    <p className="font-bold text-sm text-[#3A2D28]">₹{q.quotePrice.toLocaleString('en-IN')}</p>
-                                    <span className="text-[9px] text-[#A48374] block mt-1">{new Date(q.date).toLocaleDateString()}</span>
-                                  </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </motion.div>
                           )}
                         </AnimatePresence>

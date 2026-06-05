@@ -15,10 +15,11 @@ export default function CreateRfq() {
   const [color, setColor] = useState('D');
   const [clarity, setClarity] = useState('VVS1');
   const [budget, setBudget] = useState('');
+  const [deadline, setDeadline] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!carat || !budget) {
+    if (!carat || !budget || !deadline) {
       setError('Please fill in all required fields.');
       return;
     }
@@ -35,10 +36,11 @@ export default function CreateRfq() {
 
       const payload = {
         shape,
-        carat: carat.toLowerCase().includes('ct') ? carat : `${carat}ct`,
+        carat: Number(carat),
         color,
         clarity,
-        budget: budget.startsWith('₹') ? budget : `₹${Number(budget).toLocaleString('en-IN')}`
+        budget: Number(budget),
+        deadline: new Date(deadline).toISOString()
       };
 
       const response = await axios.post('http://localhost:2409/api/rfq/create', payload, {
@@ -170,6 +172,20 @@ export default function CreateRfq() {
                   required
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-[#A48374] mb-2">
+                Deadline Date *
+              </label>
+              <input
+                type="date"
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+                className="w-full px-5 py-3.5 rounded-2xl text-sm border border-[#CBAD8D]/20 focus:outline-none focus:border-[#A48374] bg-[#F7F3EF]/30 text-[#3A2D28]"
+                min={new Date().toISOString().split('T')[0]}
+                required
+              />
             </div>
 
             <button

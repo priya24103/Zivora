@@ -76,6 +76,7 @@ export default function SellerDashboard() {
   const [selectedRfq, setSelectedRfq] = useState(null);
   const [rfqPriceQuote, setRfqPriceQuote] = useState('');
   const [rfqMessage, setRfqMessage] = useState('');
+  const [rfqProductId, setRfqProductId] = useState('');
 
   // ─── DATABASE BACKED DATABASES ─────────────────────────────────────────────
   
@@ -156,13 +157,20 @@ export default function SellerDashboard() {
       if (rfqRes.data.status === 'success') {
         const mappedRfqs = rfqRes.data.data.rfqs.map(r => {
           const myQuoteEntry = r.quotes.find(q => q.sellerId.toString() === user._id.toString());
+          let statusVal = r.status;
+          if (statusVal === 'pending' || statusVal === 'submitted' || statusVal === 'open') {
+            statusVal = myQuoteEntry ? 'submitted' : 'pending';
+          }
+          const isWinner = r.status === 'awarded' && r.winnerSeller?.toString() === user._id.toString();
           return {
             id: r._id,
             buyer: r.buyerName,
-            specs: `${r.carat} ${r.shape} Cut, ${r.color} Color, ${r.clarity} Clarity`,
-            budget: r.budget,
+            specs: `${r.carat}ct ${r.shape} Cut, ${r.color} Color, ${r.clarity} Clarity`,
+            budget: `₹${Number(r.budget).toLocaleString('en-IN')}`,
             date: new Date(r.createdAt).toLocaleDateString(),
-            status: myQuoteEntry ? 'submitted' : 'pending',
+            status: statusVal,
+            dbStatus: r.status,
+            isWinner,
             myQuote: myQuoteEntry ? `₹${myQuoteEntry.quotePrice.toLocaleString('en-IN')}` : undefined,
             myMsg: myQuoteEntry ? myQuoteEntry.message : undefined
           };
@@ -280,14 +288,15 @@ export default function SellerDashboard() {
   // Submit Quote RFQ handler
   const handleRfqQuoteSubmit = async (e) => {
     e.preventDefault();
-    if (!rfqPriceQuote) {
-      alert('Please enter a quote price.');
+    if (!rfqPriceQuote || !rfqProductId) {
+      alert('Please enter a quote price and select a product.');
       return;
     }
 
     try {
       const token = localStorage.getItem('zivora_token');
       const response = await axios.post(`http://localhost:2409/api/rfq/${selectedRfq.id}/quote`, {
+        productId: rfqProductId,
         quotePrice: Number(rfqPriceQuote),
         message: rfqMessage || 'Direct seller offer matching specifications.'
       }, {
@@ -299,6 +308,7 @@ export default function SellerDashboard() {
         setSelectedRfq(null);
         setRfqPriceQuote('');
         setRfqMessage('');
+        setRfqProductId('');
         alert('Quote submitted successfully to the buyer.');
         fetchDashboardData();
       }
@@ -950,9 +960,17 @@ export default function SellerDashboard() {
                     <div key={rfq.id} className="p-6 rounded-2xl border border-[#CBAD8D]/10 hover:border-[#A48374]/30 bg-[#FBF9F6]/50 flex flex-col md:flex-row md:items-center justify-between gap-6">
                       <div className="space-y-2 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className={`w-2 h-2 rounded-full ${rfq.status === 'submitted' ? 'bg-[#A48374]' : 'bg-[#3A2D28]'}`} />
+                          <span className={`w-2 h-2 rounded-full ${
+                            rfq.status === 'awarded' ? (rfq.isWinner ? 'bg-green-500 animate-pulse' : 'bg-red-400') :
+                            rfq.status === 'closed' ? 'bg-gray-400' :
+                            rfq.status === 'submitted' ? 'bg-[#A48374]' : 'bg-[#3A2D28]'
+                          }`} />
                           <span className="text-[10px] font-bold uppercase tracking-wider text-[#A48374]">
-                            {rfq.status === 'submitted' ? 'Offer Submitted' : 'Pending Bid Request'}
+                            {
+                              rfq.status === 'awarded' ? (rfq.isWinner ? '🏆 Won & Awarded' : 'Awarded to Other') :
+                              rfq.status === 'closed' ? 'Expired / Closed' :
+                              rfq.status === 'submitted' ? 'Offer Submitted' : 'Pending Bid Request'
+                            }
                           </span>
                         </div>
                         <h4 className="text-base font-bold text-[#3A2D28]">Required Specs: {rfq.specs}</h4>
@@ -973,7 +991,9 @@ export default function SellerDashboard() {
                       </div>
 
                       <div className="flex-shrink-0">
-                        {rfq.status === 'pending' ? (
+                        {rfq.dbStatus === 'awarded' || rfq.dbStatus === 'closed' ? (
+                          <span className="text-xs font-semibold text-[#A48374] italic">RFQ Closed</span>
+                        ) : rfq.status === 'pending' ? (
                           <button
                             onClick={() => {
                               setSelectedRfq(rfq);
@@ -985,11 +1005,7 @@ export default function SellerDashboard() {
                           </button>
                         ) : (
                           <button
-                            onClick={() => {
-                              if (window.confirm("Do you want to retract this offer?")) {
-                                setRfqs(prev => prev.map(r => r.id === rfq.id ? { ...r, status: 'pending', myQuote: undefined, myMsg: undefined } : r));
-                              }
-                            }}
+                            onClick={() => handleRfqQuoteRetract(rfq.id)}
                             className="px-5 py-2.5 border border-red-200 text-red-500 hover:bg-red-50 text-[10px] font-bold uppercase tracking-wider rounded-full transition-colors cursor-pointer"
                           >
                             Retract Quote
@@ -1266,6 +1282,23 @@ export default function SellerDashboard() {
 
               <form onSubmit={handleRfqQuoteSubmit} className="space-y-4">
                 <div>
+                  <label className="block text-xs font-bold text-[#A48374] uppercase tracking-wider mb-1.5">Select Product from Inventory *</label>
+                  <select
+                    value={rfqProductId}
+                    onChange={(e) => setRfqProductId(e.target.value)}
+                    className="w-full px-4 py-2.5 text-xs border border-[#CBAD8D]/30 rounded-xl focus:outline-none focus:border-[#A48374] bg-white text-[#3A2D28]"
+                    required
+                  >
+                    <option value="">-- Choose a Product --</option>
+                    {inventory.filter(item => item.status === 'available').map((item) => (
+                      <option key={item._id} value={item._id}>
+                        {item.title} ({item.carat ? `${item.carat}ct • ` : ''}₹{item.price.toLocaleString('en-IN')})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
                   <label className="block text-xs font-bold text-[#A48374] uppercase tracking-wider mb-1.5">My Quote Price (₹)</label>
                   <input
                     type="number"
@@ -1294,6 +1327,9 @@ export default function SellerDashboard() {
                     onClick={() => {
                       setShowRfqModal(false);
                       setSelectedRfq(null);
+                      setRfqPriceQuote('');
+                      setRfqMessage('');
+                      setRfqProductId('');
                     }}
                     className="flex-1 py-3 text-xs font-bold uppercase tracking-wider text-[#A48374] border border-[#CBAD8D]/30 rounded-full hover:bg-[#F7F3EF] transition-colors"
                   >
