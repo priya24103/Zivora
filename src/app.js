@@ -12,6 +12,7 @@ const rfqRoutes = require('./routes/rfq.routes');
 const conversationRoutes = require('./routes/conversation.routes');
 const cartRoutes = require('./routes/cart.routes');
 const orderRoutes = require('./routes/order.routes');
+const paymentRoutes = require('./routes/payment.routes');
 
 const app = express();
 
@@ -31,7 +32,7 @@ app.use('/api/rfq', rfqRoutes);
 app.use('/api/conversations', conversationRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
-// app.use('/api/payment', paymentRoutes);
+app.use('/api/payment', paymentRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

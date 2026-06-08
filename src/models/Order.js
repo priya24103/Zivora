@@ -79,6 +79,18 @@ const orderSchema = new mongoose.Schema({
     type: Number,
     required: [true, 'Total amount is required'],
     min: [0, 'Total amount cannot be negative']
+  },
+  razorpayOrderId: {
+    type: String,
+    default: null
+  },
+  razorpayPaymentId: {
+    type: String,
+    default: null
+  },
+  razorpaySignature: {
+    type: String,
+    default: null
   }
 }, {
   timestamps: true
