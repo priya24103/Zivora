@@ -5,6 +5,17 @@ import { ShieldCheck, Sparkles, CreditCard, Lock, ArrowLeft } from 'lucide-react
 
 const API_BASE = 'http://localhost:2409/api';
 
+// Utility function to dynamically load the Razorpay checkout script
+const loadScript = (src) => {
+  return new Promise((resolve) => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
 export default function Checkout() {
   const navigate = useNavigate();
   
@@ -52,6 +63,13 @@ export default function Checkout() {
   };
 
   useEffect(() => {
+    const loadRazorpaySDK = async () => {
+      const isLoaded = await loadScript('https://checkout.razorpay.com/v1/checkout.js');
+      if (!isLoaded) {
+        setError('Failed to load Razorpay payment gateway SDK. Please verify your connection.');
+      }
+    };
+    loadRazorpaySDK();
     fetchCart();
   }, []);
 
@@ -63,7 +81,7 @@ export default function Checkout() {
     }));
   };
 
-  const handlePlaceOrder = async (e) => {
+  const handlePayment = async (e) => {
     e.preventDefault();
     setError(null);
     setCheckoutLoading(true);
@@ -83,22 +101,86 @@ export default function Checkout() {
         return;
       }
 
-      const response = await axios.post(
-        `${API_BASE}/orders/checkout`,
-        { shippingAddress },
+      // Step 1: Make a POST request to generate the Razorpay Order ID.
+      const orderResponse = await axios.post(
+        `${API_BASE}/payment/create-order`,
+        {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (response.data.status === 'success') {
-        const orderId = response.data.data.order._id;
-        // Dispatch custom storage event to update Header badge count to 0 in real-time
-        window.dispatchEvent(new Event('storage'));
-        navigate('/order/success', { state: { orderId } });
+      if (orderResponse.data.status !== 'success') {
+        throw new Error(orderResponse.data.message || 'Failed to initialize payment order.');
       }
+
+      const { order_id, amount, currency, key_id } = orderResponse.data.data;
+
+      // Retrieve user info for prefill details (from localStorage)
+      const user = JSON.parse(localStorage.getItem('zivora_user')) || {
+        name: 'Valued Client',
+        email: 'client@zivora.com',
+        phone: '9876543210'
+      };
+
+      // Step 2: Open the Razorpay checkout modal.
+      const options = {
+        key: key_id,
+        amount: amount,
+        currency: currency,
+        name: 'Zivora Fine Diamonds',
+        description: 'Secure Marketplace Purchase',
+        order_id: order_id,
+        handler: async function (response) {
+          try {
+            setCheckoutLoading(true);
+            // Step 3 & 4: capture IDs & signature, post to backend verify along with shippingAddress
+            const verifyResponse = await axios.post(
+              `${API_BASE}/payment/verify`,
+              {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                shippingAddress
+              },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            if (verifyResponse.data.status === 'success') {
+              // Dispatch custom storage event to update Header badge count to 0 in real-time
+              window.dispatchEvent(new Event('storage'));
+              // Step 5: Redirect user to /order/success using router
+              navigate('/order/success', { state: { orderId: verifyResponse.data.data.orderId } });
+            } else {
+              setError(verifyResponse.data.message || 'Payment verification failed.');
+              setCheckoutLoading(false);
+            }
+          } catch (err) {
+            console.error('Signature verification failed:', err);
+            setError(err.response?.data?.message || 'Verification failed. Please contact customer support.');
+            setCheckoutLoading(false);
+          }
+        },
+        prefill: {
+          name: user.name,
+          email: user.email,
+          contact: user.phone
+        },
+        theme: {
+          color: '#3A2D28'
+        },
+        modal: {
+          ondismiss: function () {
+            // Handle edge case: user closing the Razorpay modal without paying
+            setCheckoutLoading(false);
+          }
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+
     } catch (err) {
-      console.error(err);
-      setError(err.response?.data?.message || 'Failed to place order. Please review your details.');
-    } finally {
+      console.error('Razorpay initialization error:', err);
+      setError(err.response?.data?.message || err.message || 'Failed to initiate secure checkout. Please try again.');
       setCheckoutLoading(false);
     }
   };
@@ -142,7 +224,7 @@ export default function Checkout() {
           </div>
         )}
 
-        <form onSubmit={handlePlaceOrder} className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+        <form onSubmit={handlePayment} className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
           {/* Left Side: Form Sections */}
           <div className="lg:col-span-7 space-y-8">
             {/* Section 1: Shipping Information */}
@@ -319,8 +401,17 @@ export default function Checkout() {
                 disabled={checkoutLoading}
                 className="w-full mt-8 py-4 bg-[#3A2D28] text-white text-xs font-semibold uppercase tracking-widest rounded-full hover:opacity-90 transition-opacity flex items-center justify-center gap-2 cursor-pointer shadow-sm"
               >
-                <Lock className="w-3.5 h-3.5" />
-                {checkoutLoading ? 'Processing Securely...' : 'Place Secure Order'}
+                {checkoutLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Processing Payment...</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Pay Securely</span>
+                  </>
+                )}
               </button>
 
               <div className="mt-6 flex items-center gap-2 justify-center text-[9px] text-[#A48374] uppercase tracking-wider font-semibold">
