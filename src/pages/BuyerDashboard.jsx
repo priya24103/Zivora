@@ -134,6 +134,22 @@ export default function BuyerDashboard() {
     }
   };
 
+  const handleRegisterForAuction = async (auctionId) => {
+    try {
+      const token = localStorage.getItem('zivora_token');
+      const response = await axios.post(`http://localhost:2409/api/auctions/${auctionId}/register`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.status === 'success') {
+        alert('Successfully registered for this live auction!');
+        fetchDashboardData();
+      }
+    } catch (err) {
+      console.error('Error registering for auction:', err);
+      alert(err.response?.data?.message || 'Could not register for auction.');
+    }
+  };
+
   return (
     <div className="min-h-screen py-12 px-6 lg:px-16" style={{ backgroundColor: '#F7F3EF' }}>
       <div className="max-w-7xl mx-auto">
@@ -264,21 +280,22 @@ export default function BuyerDashboard() {
                       </thead>
                       <tbody className="divide-y divide-[#CBAD8D]/10">
                         {myBids.map((bid) => {
-                          const userBids = bid.bids.filter(b => b.bidderId === user._id).sort((a, b) => b.bidAmount - a.bidAmount);
-                          const myLastBid = userBids[0]?.bidAmount || bid.startPrice;
+                          const userBids = bid.bids.filter(b => b.bidderId === user._id).sort((a, b) => (b.amount || b.bidAmount || 0) - (a.amount || a.bidAmount || 0));
+                          const myLastBid = userBids[0]?.amount || userBids[0]?.bidAmount || bid.startPrice;
                           const isHighest = bid.bids[bid.bids.length - 1]?.bidderId === user._id;
+                          const currentBidVal = bid.currentHighestBid !== undefined ? bid.currentHighestBid : bid.currentBid;
 
                           return (
                             <tr key={bid._id} className="text-[#3A2D28] hover:bg-[#FBF9F6]/50 transition-colors">
                               <td className="py-4 font-medium flex items-center gap-2">
                                 <Diamond className="w-3.5 h-3.5 text-[#CBAD8D]" />
                                 <div>
-                                  <p>{bid.title}</p>
-                                  <p className="text-[10px] text-[#A48374] mt-0.5">{bid.category} • {bid.carat}ct • {bid.color} {bid.clarity}</p>
+                                  <p>{bid.title || bid.productId?.title}</p>
+                                  <p className="text-[10px] text-[#A48374] mt-0.5">{bid.category || bid.productId?.category} • {bid.productId?.carat || bid.carat}ct • {bid.productId?.color || bid.color} {bid.productId?.clarity || bid.clarity}</p>
                                 </div>
                               </td>
                               <td className="py-4">₹{bid.startPrice.toLocaleString('en-IN')}</td>
-                              <td className="py-4">₹{bid.currentBid.toLocaleString('en-IN')}</td>
+                              <td className="py-4">₹{currentBidVal.toLocaleString('en-IN')}</td>
                               <td className="py-4 font-semibold">₹{myLastBid.toLocaleString('en-IN')}</td>
                               <td className="py-4">
                                 <span 
@@ -305,9 +322,12 @@ export default function BuyerDashboard() {
                 ) : (
                   <div className="space-y-6">
                     {activeAuctions.map((auc) => {
-                      const minBidRequired = auc.bidsCount === 0 ? auc.startPrice : auc.currentBid;
+                      const currentBidVal = auc.currentHighestBid !== undefined ? auc.currentHighestBid : auc.currentBid;
                       const hasBid = auc.bids.some(b => b.bidderId === user._id);
-                      
+                      const isRegistered = auc.registeredBuyers?.some(id => id.toString() === user._id?.toString());
+                      const regDeadline = new Date(auc.registrationDeadline || auc.createdAt || new Date());
+                      const regClosed = new Date() >= regDeadline;
+
                       return (
                         <div 
                           key={auc._id} 
@@ -318,18 +338,18 @@ export default function BuyerDashboard() {
                               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                               <span className="text-[10px] font-bold text-green-600 uppercase tracking-wider">Live</span>
                             </div>
-                            <h4 className="font-semibold text-base text-[#3A2D28] mt-1">{auc.title}</h4>
+                            <h4 className="font-semibold text-base text-[#3A2D28] mt-1">{auc.title || auc.productId?.title}</h4>
                             <p className="text-xs text-[#A48374] mt-0.5">
-                              {auc.category} {auc.carat && `• ${auc.carat}ct • ${auc.color} ${auc.clarity} • ${auc.cut || 'Excellent'} Cut`}
+                              {auc.category || auc.productId?.category} {auc.productId?.carat && `• ${auc.productId.carat}ct • ${auc.productId.color} ${auc.productId.clarity} • ${auc.productId.cut || 'Excellent'} Cut`}
                             </p>
                             <div className="flex items-center gap-4 text-[11px] font-bold text-[#A48374] mt-3 uppercase tracking-wider">
                               <span>Starting: ₹{auc.startPrice.toLocaleString('en-IN')}</span>
                               <span>•</span>
                               <span>Bids: {auc.bidsCount}</span>
-                              {hasBid && (
+                              {isRegistered && (
                                 <>
                                   <span>•</span>
-                                  <span className="text-[#10B981]">Bidded</span>
+                                  <span className="text-green-600">Registered</span>
                                 </>
                               )}
                             </div>
@@ -337,22 +357,31 @@ export default function BuyerDashboard() {
 
                           <div className="flex flex-col md:items-end w-full md:w-auto">
                             <p className="text-[10px] font-bold uppercase tracking-wider text-[#A48374]">Current Bid</p>
-                            <p className="text-2xl font-light text-[#3A2D28] mt-0.5">₹{auc.currentBid.toLocaleString('en-IN')}</p>
+                            <p className="text-2xl font-light text-[#3A2D28] mt-0.5">₹{currentBidVal.toLocaleString('en-IN')}</p>
                             
-                            <div className="flex items-center gap-2 mt-3 w-full md:w-auto">
-                              <input 
-                                type="number" 
-                                placeholder={`Min: ₹${(minBidRequired + 1000).toLocaleString('en-IN')}`}
-                                value={bidInputs[auc._id] || ''}
-                                onChange={(e) => setBidInputs(prev => ({ ...prev, [auc._id]: e.target.value }))}
-                                className="px-3 py-2 text-xs border border-[#CBAD8D]/20 focus:outline-none rounded-lg bg-white text-[#3A2D28] w-full md:w-28"
-                              />
-                              <button 
-                                onClick={() => handlePlaceBid(auc._id, auc.startPrice, auc.currentBid, auc.bidsCount)}
-                                className="px-4 py-2 bg-[#3A2D28] text-white text-[10px] font-bold uppercase tracking-wider rounded-lg hover:bg-[#A48374] transition-colors whitespace-nowrap cursor-pointer"
-                              >
-                                Bid
-                              </button>
+                            <div className="mt-3 w-full md:w-auto">
+                              {isRegistered ? (
+                                <button 
+                                  onClick={() => navigate(`/auctions/${auc._id}`)}
+                                  className="px-6 py-2 bg-[#3A2D28] text-white text-[10px] font-bold uppercase tracking-wider rounded-lg hover:bg-[#A48374] transition-colors whitespace-nowrap cursor-pointer block text-center"
+                                >
+                                  Enter Live Room
+                                </button>
+                              ) : regClosed ? (
+                                <button 
+                                  disabled
+                                  className="px-6 py-2 bg-gray-200 text-gray-400 text-[10px] font-bold uppercase tracking-wider rounded-lg whitespace-nowrap cursor-not-allowed block text-center"
+                                >
+                                  Registration Closed
+                                </button>
+                              ) : (
+                                <button 
+                                  onClick={() => handleRegisterForAuction(auc._id)}
+                                  className="px-6 py-2 bg-[#CBAD8D] text-white text-[10px] font-bold uppercase tracking-wider rounded-lg hover:bg-[#A48374] transition-colors whitespace-nowrap cursor-pointer block text-center"
+                                >
+                                  Register for Auction
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>

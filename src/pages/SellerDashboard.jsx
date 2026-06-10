@@ -860,16 +860,8 @@ export default function SellerDashboard() {
                         <h3 className="text-xl font-light text-[#3A2D28]" style={{ fontFamily: 'Georgia, serif' }}>Live Auctions</h3>
                       </div>
                       <button 
-                        onClick={() => {
-                          if (inventory.filter(i => i.status === 'available').length === 0) {
-                            alert("You do not have any 'Available' stock in inventory to auction. Add items first or toggle status.");
-                          } else {
-                            setSelectedAuctionItem(inventory.filter(i => i.status === 'available')[0]);
-                            setAuctionStartPrice(inventory.filter(i => i.status === 'available')[0].price);
-                            setShowAuctionModal(true);
-                          }
-                        }}
-                        className="px-4 py-2 bg-[#3A2D28] text-white text-[10px] font-bold uppercase tracking-wider rounded-full hover:bg-[#A48374] transition-colors"
+                        onClick={() => navigate('/seller/create-auction')}
+                        className="px-4 py-2 bg-[#3A2D28] text-white text-[10px] font-bold uppercase tracking-wider rounded-full hover:bg-[#A48374] transition-colors cursor-pointer shadow-sm"
                       >
                         Start Auction
                       </button>
