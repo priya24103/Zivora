@@ -17,14 +17,9 @@ const io = new Server(server, {
 
 app.set('io', io);
 
-io.on('connection', (socket) => {
-  console.log(`User connected: ${socket.id}`);
-
-  socket.on('disconnect', () => {
-    console.log(`User disconnected: ${socket.id}`);
-  });
-  
-});
+// Initialize live bidding socket handler
+const registerAuctionSocket = require('./socket/auctionSocket');
+registerAuctionSocket(io);
 
 const rfqCron = require('./jobs/rfqCron');
 

@@ -1,77 +1,270 @@
 const Auction = require('../models/Auction');
-const { Product } = require('../models/Product');
+const { Product, Diamond, Jewelry } = require('../models/Product');
 
-// @desc    Create an auction for an available product
+// @desc    Create an auction with its product listing (1-Step Flow)
 // @route   POST /api/auctions/create
 // @access  Private (Seller only)
 exports.createAuction = async (req, res, next) => {
+  let createdProduct = null;
   try {
-    const { productId, startPrice, duration } = req.body;
+    const { 
+      // Product details
+      category, 
+      title, 
+      description, 
+      images, 
+      carat, 
+      color, 
+      clarity, 
+      cut, 
+      shape, 
+      certificateLab, 
+      certificateNumber, 
+      certificateFileUrl,
+      jewelryType, 
+      metalType, 
+      weightGrams, 
+      gender, 
+      diamondDetails,
+      
+      // Auction details
+      startPrice, 
+      minIncrement, 
+      endTime, 
+      registrationDeadline,
+      startTime
+    } = req.body;
+
     const sellerId = req.user._id;
 
-    if (!productId || !startPrice) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Product ID and starting price are required'
-      });
-    }
-
-    const product = await Product.findById(productId);
-    if (!product) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Product not found'
-      });
-    }
-
-    // Verify ownership
-    if (product.sellerId.toString() !== sellerId.toString()) {
+    // Verify user role is seller
+    if (req.user.role !== 'seller') {
       return res.status(403).json({
         status: 'error',
-        message: 'You can only auction your own products'
+        message: 'Access restricted to sellers only'
       });
     }
 
-    // Verify status is available
-    if (product.status !== 'available') {
+    if (!category || !title || !description || !startPrice || !registrationDeadline || !endTime) {
       return res.status(400).json({
         status: 'error',
-        message: 'Product must be available to be auctioned'
+        message: 'Product category, title, description, starting price, registration deadline, and end time are required'
       });
     }
 
-    // Calculate end time
-    let hours = 24;
-    if (duration === '48h') hours = 48;
-    if (duration === '168h') hours = 168; // 1 week
-    const endTime = new Date();
-    endTime.setHours(endTime.getHours() + hours);
-
-    const auction = await Auction.create({
-      productId,
+    // 1. Prepare base product payload
+    const productPayload = {
       sellerId,
-      title: product.title,
-      category: product.category,
-      carat: product.carat,
-      color: product.color,
-      clarity: product.clarity,
-      cut: product.cut,
-      startPrice,
-      currentBid: startPrice,
-      endTime,
+      title,
+      description,
+      price: Number(startPrice),
+      stock: 1,
+      images: images || [],
+      listingType: 'auction_only',
+      status: 'available'
+    };
+
+    // 2. Instantiate correct model based on category
+    let productInstance;
+    if (category === 'Diamond' || category === 'Loose Diamond') {
+      if (!carat || !color || !clarity || !cut || !shape) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Carat, color, clarity, cut, and shape are required for Diamonds'
+        });
+      }
+      productInstance = new Diamond({
+        ...productPayload,
+        carat: Number(carat),
+        color,
+        clarity,
+        cut,
+        shape,
+        certificateLab: certificateLab || 'None',
+        certificateNumber,
+        certificateFileUrl
+      });
+    } else if (category === 'Jewelry') {
+      if (!jewelryType || !metalType || !weightGrams || !gender) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Jewelry type, metal type, weight in grams, and target gender are required for Jewelry'
+        });
+      }
+      productInstance = new Jewelry({
+        ...productPayload,
+        jewelryType,
+        metalType,
+        weightGrams: Number(weightGrams),
+        gender,
+        diamondDetails
+      });
+    } else {
+      return res.status(400).json({
+        status: 'error',
+        message: `Invalid product category: "${category}". Category must be either "Diamond" or "Jewelry".`
+      });
+    }
+
+    // Step A: Save Product
+    createdProduct = await productInstance.save();
+
+    // Step B: Prepare and save Auction
+    const parsedRegDeadline = new Date(registrationDeadline);
+    const parsedEndTime = new Date(endTime);
+
+    if (isNaN(parsedRegDeadline.getTime())) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid registration deadline date format'
+      });
+    }
+
+    if (isNaN(parsedEndTime.getTime())) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid auction end time date format'
+      });
+    }
+
+    const auction = new Auction({
+      productId: createdProduct._id,
+      sellerId,
+      startPrice: Number(startPrice),
+      minIncrement: Number(minIncrement) || 100,
+      currentHighestBid: Number(startPrice),
+      highestBidder: null,
+      registrationDeadline: parsedRegDeadline,
+      endTime: parsedEndTime,
+      startTime: startTime ? new Date(startTime) : new Date(),
       status: 'active',
       bidsCount: 0,
+      registeredBuyers: [],
       bids: []
     });
 
-    // Mark product as on_memo
-    product.status = 'on_memo';
-    await product.save();
+    const savedAuction = await auction.save();
 
+    // Step C: Return success response
     res.status(201).json({
       status: 'success',
-      message: 'Auction created successfully',
+      message: 'Auction and product created successfully in a 1-step flow',
+      data: {
+        auction: savedAuction,
+        product: createdProduct
+      }
+    });
+
+  } catch (error) {
+    // Rollback: if product was saved but auction creation failed, delete the product to prevent orphans
+    if (createdProduct && createdProduct._id) {
+      try {
+        await Product.findByIdAndDelete(createdProduct._id);
+        console.log(`Rollback completed: Deleted orphaned product ${createdProduct._id}`);
+      } catch (deleteErr) {
+        console.error(`Rollback failed to delete product ${createdProduct._id}:`, deleteErr);
+      }
+    }
+
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        status: 'error',
+        message: messages.join(', ')
+      });
+    }
+
+    next(error);
+  }
+};
+
+// @desc    Register a buyer for an auction
+// @route   POST /api/auctions/:id/register
+// @access  Private (Buyer only)
+exports.registerForAuction = async (req, res, next) => {
+  try {
+    const auctionId = req.params.id;
+    const userId = req.user._id;
+
+    const auction = await Auction.findById(auctionId);
+    if (!auction) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Auction not found'
+      });
+    }
+
+    if (new Date() >= new Date(auction.registrationDeadline)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Registration deadline has passed'
+      });
+    }
+
+    // Check if already registered
+    const isAlreadyRegistered = auction.registeredBuyers.some(
+      (buyerId) => buyerId.toString() === userId.toString()
+    );
+
+    if (isAlreadyRegistered) {
+      return res.status(200).json({
+        status: 'success',
+        message: 'You are already registered for this auction',
+        data: { auction }
+      });
+    }
+
+    auction.registeredBuyers.push(userId);
+    await auction.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Successfully registered for auction',
       data: { auction }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get auction dashboard (upcoming, live, closed)
+// @route   GET /api/auctions/dashboard
+// @access  Private
+exports.getAuctionDashboard = async (req, res, next) => {
+  try {
+    const now = new Date();
+
+    // Upcoming: status is active/pending and startTime > now, or registration deadline is in the future and startTime > now
+    const upcoming = await Auction.find({
+      $or: [
+        { status: 'pending' },
+        { status: 'active', startTime: { $gt: now } }
+      ]
+    }).populate('productId').populate('sellerId', 'name email').sort({ startTime: 1 });
+
+    // Live: status is active and startTime <= now and endTime >= now
+    const live = await Auction.find({
+      status: 'active',
+      startTime: { $lte: now },
+      endTime: { $gte: now }
+    }).populate('productId').populate('sellerId', 'name email').sort({ endTime: 1 });
+
+    // Closed: status is completed/cancelled or endTime < now
+    const closed = await Auction.find({
+      $or: [
+        { status: 'completed' },
+        { status: 'cancelled' },
+        { status: 'active', endTime: { $lt: now } }
+      ]
+    }).populate('productId').populate('sellerId', 'name email').sort({ endTime: -1 });
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        upcoming,
+        live,
+        closed
+      }
     });
   } catch (error) {
     next(error);
@@ -86,7 +279,7 @@ exports.getActiveAuctions = async (req, res, next) => {
     const auctions = await Auction.find({
       status: 'active',
       endTime: { $gt: new Date() }
-    }).sort({ createdAt: -1 });
+    }).populate('productId').sort({ createdAt: -1 });
 
     res.status(200).json({
       status: 'success',
@@ -104,7 +297,7 @@ exports.getActiveAuctions = async (req, res, next) => {
 exports.getSellerAuctions = async (req, res, next) => {
   try {
     const sellerId = req.user._id;
-    const auctions = await Auction.find({ sellerId }).sort({ createdAt: -1 });
+    const auctions = await Auction.find({ sellerId }).populate('productId').sort({ createdAt: -1 });
 
     res.status(200).json({
       status: 'success',
@@ -116,7 +309,7 @@ exports.getSellerAuctions = async (req, res, next) => {
   }
 };
 
-// @desc    Place a bid on an auction
+// @desc    Place a bid on an auction (REST fallback)
 // @route   POST /api/auctions/:id/bid
 // @access  Private (Buyer only)
 exports.placeBid = async (req, res, next) => {
@@ -141,6 +334,17 @@ exports.placeBid = async (req, res, next) => {
       });
     }
 
+    // Verify registration
+    const isRegistered = auction.registeredBuyers.some(
+      (buyerId) => buyerId.toString() === bidderId.toString()
+    );
+    if (!isRegistered) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'You must be registered for this auction to place a bid'
+      });
+    }
+
     if (auction.status !== 'active' || auction.endTime < new Date()) {
       return res.status(400).json({
         status: 'error',
@@ -148,47 +352,67 @@ exports.placeBid = async (req, res, next) => {
       });
     }
 
-    // Bid must be higher than starting price and current highest bid
-    const minBid = auction.bidsCount === 0 ? auction.startPrice : auction.currentBid;
-    if (bidAmount <= minBid) {
+    const minIncrement = auction.minIncrement || 100;
+    const minBid = auction.currentHighestBid + minIncrement;
+    if (Number(bidAmount) < minBid) {
       return res.status(400).json({
         status: 'error',
-        message: `Bid must be greater than current bid/start price of ₹${minBid}`
+        message: `Bid must be at least ₹${minBid.toLocaleString('en-IN')}`
       });
     }
 
-    // Add bid
+    // Atomic update
     const newBid = {
       bidderId,
       bidderName,
-      bidAmount,
-      time: new Date()
+      amount: Number(bidAmount),
+      timestamp: new Date()
     };
 
-    auction.bids.push(newBid);
-    auction.currentBid = bidAmount;
-    auction.bidsCount += 1;
-    await auction.save();
+    const updatedAuction = await Auction.findOneAndUpdate(
+      {
+        _id: auctionId,
+        currentHighestBid: { $lt: Number(bidAmount) },
+        status: 'active',
+        endTime: { $gt: new Date() }
+      },
+      {
+        $set: {
+          currentHighestBid: Number(bidAmount),
+          highestBidder: bidderId
+        },
+        $inc: { bidsCount: 1 },
+        $push: { bids: newBid }
+      },
+      { new: true }
+    );
+
+    if (!updatedAuction) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Bid failed. Your bid may be too low or the auction has ended.'
+      });
+    }
 
     // Broadcast update via Socket.io
     const io = req.app.get('io');
     if (io) {
-      io.emit('newBid', {
-        auctionId: auction._id,
-        currentBid: bidAmount,
-        bidsCount: auction.bidsCount,
-        newBid: {
-          bidder: bidderName,
-          bidAmount,
-          time: 'Just now'
-        }
+      io.to(auctionId.toString()).emit('new_bid', {
+        auctionId,
+        amount: Number(bidAmount),
+        bidderName,
+        bidderId,
+        timestamp: newBid.timestamp,
+        currentHighestBid: Number(bidAmount),
+        bidsCount: updatedAuction.bidsCount,
+        bids: updatedAuction.bids
       });
     }
 
     res.status(200).json({
       status: 'success',
       message: 'Bid placed successfully',
-      data: { auction }
+      data: { auction: updatedAuction }
     });
   } catch (error) {
     next(error);
@@ -205,12 +429,37 @@ exports.getMyBids = async (req, res, next) => {
     // Find all auctions where the current buyer has placed at least one bid
     const auctions = await Auction.find({
       'bids.bidderId': buyerId
-    }).sort({ updatedAt: -1 });
+    }).populate('productId').sort({ updatedAt: -1 });
 
     res.status(200).json({
       status: 'success',
       results: auctions.length,
       data: { auctions }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get single auction details by ID
+// @route   GET /api/auctions/:id
+// @access  Private
+exports.getAuctionById = async (req, res, next) => {
+  try {
+    const auction = await Auction.findById(req.params.id)
+      .populate('productId')
+      .populate('sellerId', 'name email');
+
+    if (!auction) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Auction not found'
+      });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: { auction }
     });
   } catch (error) {
     next(error);

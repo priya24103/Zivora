@@ -73,6 +73,15 @@ const auctionSchema = new mongoose.Schema({
     enum: ['pending', 'active', 'completed', 'cancelled'], // Added pending for scheduled auctions
     default: 'active'
   },
+  registrationDeadline: {
+    type: Date,
+    required: [true, 'Registration deadline is required']
+  },
+  registeredBuyers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: []
+  }],
   bids: [bidSchema] // Embedded history of all bids
 }, {
   timestamps: true
