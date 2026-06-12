@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { 
@@ -8,7 +8,9 @@ import {
   Settings, 
   CheckCircle2, 
   Loader2,
-  Image as ImageIcon
+  Image as ImageIcon,
+  UploadCloud,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -43,7 +45,10 @@ export default function CreateAuction() {
   // Shared Product specs
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [imageUrlInput, setImageUrlInput] = useState('');
+  const fileInputRef = useRef(null);
+  const [images, setImages] = useState([]); // List of Cloudinary URLs
+  const [isUploading, setIsUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
 
   // Diamond specific specs
   const [carat, setCarat] = useState('');
@@ -66,6 +71,76 @@ export default function CreateAuction() {
   const [minIncrement, setMinIncrement] = useState('100');
   const [registrationDeadline, setRegistrationDeadline] = useState('');
   const [endTime, setEndTime] = useState('');
+
+  // Handle Drag Events for file upload
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  };
+
+  // Handle drop of files
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      await uploadFiles(e.dataTransfer.files);
+    }
+  };
+
+  // Handle file select via browse dialog
+  const handleFileChange = async (e) => {
+    if (e.target.files && e.target.files[0]) {
+      await uploadFiles(e.target.files);
+    }
+  };
+
+  // Upload files to Express upload backend
+  const uploadFiles = async (fileList) => {
+    setIsUploading(true);
+    setError(null);
+    const formData = new FormData();
+    
+    // Convert FileList to array and restrict to max remaining images (up to 5 total)
+    const filesToUpload = Array.from(fileList).slice(0, 5 - images.length);
+    if (filesToUpload.length === 0) {
+      setError('You can upload up to 5 images in total.');
+      setIsUploading(false);
+      return;
+    }
+
+    filesToUpload.forEach(file => {
+      formData.append('files', file);
+    });
+
+    try {
+      const res = await axios.post(`${API_URL}/api/upload/multiple`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      if (res.data.status === 'success') {
+        setImages((prev) => [...prev, ...res.data.urls]);
+      }
+    } catch (err) {
+      console.error('File upload failed:', err);
+      setError(err.response?.data?.message || 'Failed to upload images. Ensure files are under 10MB (.jpg, .png, .pdf).');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Remove an uploaded image from status state
+  const handleRemoveImage = (indexToRemove) => {
+    setImages((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
 
   const handleNextStep = () => {
     // Validate Step 1 fields
@@ -126,8 +201,8 @@ export default function CreateAuction() {
       }
 
       // Format images array
-      const images = imageUrlInput 
-        ? imageUrlInput.split(',').map(url => url.trim()).filter(Boolean)
+      const finalImages = images.length > 0 
+        ? images
         : ['https://images.unsplash.com/photo-1599707367072-cd6ada2bc375?w=800'];
 
       // Construct unified payload
@@ -135,7 +210,7 @@ export default function CreateAuction() {
         category,
         title,
         description,
-        images,
+        images: finalImages,
         startPrice: Number(startPrice),
         minIncrement: Number(minIncrement) || 100,
         registrationDeadline: regDate.toISOString(),
@@ -287,18 +362,65 @@ export default function CreateAuction() {
                       className="w-full px-4 py-3 text-xs border border-[#CBAD8D]/20 focus:border-[#A48374] focus:outline-none rounded-xl bg-[#FAF8F6] text-[#3A2D28]"
                     />
                   </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-[10px] uppercase tracking-wider text-[#A48374] font-semibold mb-2 flex items-center gap-1.5">
+                  <div className="md:col-span-2 space-y-2">
+                    <label className="block text-[10px] uppercase tracking-wider text-[#A48374] font-semibold flex items-center gap-1.5">
                       <ImageIcon className="w-3.5 h-3.5 text-[#CBAD8D]" />
-                      Images URLs (Comma separated)
+                      Product Images <span className="text-[9px] text-[#A48374]/60 normal-case">(Max 5 images)</span>
                     </label>
-                    <input 
-                      type="text"
-                      value={imageUrlInput} 
-                      onChange={(e) => setImageUrlInput(e.target.value)} 
-                      placeholder="https://images.unsplash.com/..., https://..."
-                      className="w-full px-4 py-3 text-xs border border-[#CBAD8D]/20 focus:border-[#A48374] focus:outline-none rounded-xl bg-[#FAF8F6] text-[#3A2D28] font-mono"
-                    />
+                    
+                    {/* Drag & drop container */}
+                    <div 
+                      onDragEnter={handleDrag}
+                      onDragOver={handleDrag}
+                      onDragLeave={handleDrag}
+                      onDrop={handleDrop}
+                      onClick={() => fileInputRef.current.click()}
+                      className={`border border-dashed rounded-xl p-6 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-2 ${
+                        dragActive 
+                          ? 'border-[#3A2D28] bg-[#F5F1EC]' 
+                          : 'border-[#CBAD8D]/40 bg-[#FAF8F6] hover:bg-[#F5F1EC]/50 hover:border-[#A48374]'
+                      }`}
+                    >
+                      <input 
+                        type="file" 
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        multiple
+                        className="hidden"
+                        accept="image/*"
+                      />
+                      
+                      {isUploading ? (
+                        <div className="flex flex-col items-center gap-2 py-2">
+                          <Loader2 className="w-6 h-6 text-[#A48374] animate-spin" />
+                          <span className="text-[11px] font-medium text-[#3A2D28]">Uploading files to Cloudinary...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <UploadCloud className="w-8 h-8 text-[#A48374]" />
+                          <p className="text-xs font-semibold text-[#3A2D28]">Click to upload or drag & drop</p>
+                          <p className="text-[10px] text-[#A48374]">PNG, JPG, WEBP up to 10MB (max 5 images)</p>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Image Thumbnails Previews */}
+                    {images.length > 0 && (
+                      <div className="grid grid-cols-5 gap-3 mt-4">
+                        {images.map((url, idx) => (
+                          <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden border border-[#CBAD8D]/20 bg-gray-50">
+                            <img src={url} alt={`preview-${idx}`} className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveImage(idx)}
+                              className="absolute top-1 right-1 p-1 bg-black/60 rounded-full text-white hover:bg-black transition-colors cursor-pointer"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 

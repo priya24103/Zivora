@@ -25,7 +25,12 @@ import {
   Plus,
   ArrowUpRight,
   Check,
-  RefreshCw
+  RefreshCw,
+  X,
+  Users,
+  Calendar,
+  ChevronLeft,
+  ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
@@ -76,8 +81,136 @@ export default function SellerDashboard() {
   const [selectedRfq, setSelectedRfq] = useState(null);
   const [rfqPriceQuote, setRfqPriceQuote] = useState('');
   const [rfqMessage, setRfqMessage] = useState('');
-  const [rfqProductId, setRfqProductId] = useState('');
+  const [rfqProductId, setRfqProductId] = useState('');  const [activeAuctionTab, setActiveAuctionTab] = useState('Live Now');
+  const [selectedManageAuction, setSelectedManageAuction] = useState(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const getAuctionCategory = (auction) => {
+    const now = currentTime;
+    const start = new Date(auction.startTime);
+    const end = new Date(auction.endTime);
+    const status = auction.status;
+
+    if (status === 'cancelled' || status === 'completed') {
+      return 'Closed';
+    }
+    
+    if (status === 'pending' || start > now) {
+      return 'Upcoming';
+    }
+
+    if (status === 'active' && start <= now && end >= now) {
+      return 'Live Now';
+    }
+
+    if (status === 'active' && end < now) {
+      return 'Closed';
+    }
+
+    return 'Closed';
+  };
+
+  const getTimerBadge = (auction) => {
+    const now = currentTime;
+    const start = new Date(auction.startTime);
+    const end = new Date(auction.endTime);
+    const status = auction.status;
+
+    if (status === 'cancelled') {
+      return { text: 'Cancelled', style: 'bg-red-50 text-red-700 border border-red-200' };
+    }
+    if (status === 'completed') {
+      return { text: 'Closed', style: 'bg-gray-100 text-gray-700 border border-gray-200' };
+    }
+
+    if (start > now) {
+      const diffMs = start - now;
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      if (diffDays > 0) {
+        return { text: `Starts in ${diffDays} Day${diffDays > 1 ? 's' : ''}`, style: 'bg-[#F5F1EC] text-[#A48374] border border-[#CBAD8D]/30' };
+      }
+      const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      const diffSecs = Math.floor((diffMs % (1000 * 60)) / 1000);
+      return { 
+        text: `Starts in ${String(diffHrs).padStart(2, '0')}:${String(diffMins).padStart(2, '0')}:${String(diffSecs).padStart(2, '0')}`, 
+        style: 'bg-[#FAF8F6] text-[#A48374] border border-[#CBAD8D]/20' 
+      };
+    }
+
+    if (start <= now && end >= now) {
+      const diffMs = end - now;
+      const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      const diffSecs = Math.floor((diffMs % (1000 * 60)) / 1000);
+      return { 
+        text: `Ends in ${String(diffHrs).padStart(2, '0')}:${String(diffMins).padStart(2, '0')}:${String(diffSecs).padStart(2, '0')}`, 
+        style: 'bg-green-50 text-green-700 border border-green-200 font-mono animate-pulse' 
+      };
+    }
+
+    return { text: 'Closed', style: 'bg-gray-100 text-gray-700 border border-gray-200' };
+  };
+
+  const getMockBuyersForAuction = (auction) => {
+    if (auction.registeredBuyers && auction.registeredBuyers.length > 0) {
+      return auction.registeredBuyers.map((buyer, idx) => ({
+        name: buyer.name || `Buyer #${idx + 1}`,
+        email: buyer.email || `buyer${idx + 1}@zivora.com`,
+        id: buyer._id ? `B-${buyer._id.toString().slice(-4).toUpperCase()}` : `B-MOCK${idx}`
+      }));
+    }
+    return [
+      { name: 'Kunal Singhania', email: 'kunal@singhaniadiamonds.com', id: 'B-8821' },
+      { name: 'Gaurang Javerian', email: 'g.javerian@venusjewels.in', id: 'B-4091' },
+      { name: 'Aishwarya Roy', email: 'aishwarya@royalluxury.co', id: 'B-9831' },
+      { name: 'Amitabh Mehta', email: 'amehta@mehtabrothers.com', id: 'B-7712' },
+      { name: 'Priyanka Chopra', email: 'priyanka@pcjewellers.com', id: 'B-5290' }
+    ];
+  };
+
+  const getMockBidsForAuction = (auction) => {
+    if (auction.bids && auction.bids.length > 0) {
+      return [...auction.bids].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    }
+    const startPrice = auction.startPrice || 500000;
+    const minInc = auction.minIncrement || 100;
+    return [
+      { bidderName: 'Gaurang Javerian', amount: startPrice + minInc * 3, timestamp: new Date(Date.now() - 15 * 60 * 1000) },
+      { bidderName: 'Kunal Singhania', amount: startPrice + minInc * 2, timestamp: new Date(Date.now() - 45 * 60 * 1000) },
+      { bidderName: 'Aishwarya Roy', amount: startPrice + minInc * 1, timestamp: new Date(Date.now() - 120 * 60 * 1000) }
+    ];
+  };
+
+  const handleCancelAuction = async (auctionId) => {
+    if (!window.confirm('Are you sure you want to cancel this auction? This will restore the product back to your active catalog.')) {
+      return;
+    }
+    try {
+      setIsCancelling(true);
+      const token = localStorage.getItem('zivora_token');
+      const response = await axios.patch(`http://localhost:2409/api/auctions/${auctionId}/cancel`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.status === 'success') {
+        alert('Auction cancelled successfully.');
+        setSelectedManageAuction(null);
+        fetchDashboardData();
+      }
+    } catch (err) {
+      console.error('Error cancelling auction:', err);
+      alert(err.response?.data?.message || 'Could not cancel the auction. Please try again.');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
   // ─── DATABASE BACKED DATABASES ─────────────────────────────────────────────
   
   const [auctions, setAuctions] = useState([]);
@@ -128,26 +261,7 @@ export default function SellerDashboard() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (aucRes.data.status === 'success') {
-        const mappedAuctions = aucRes.data.data.auctions.map(a => ({
-          id: a._id,
-          title: a.title,
-          category: a.category,
-          carat: a.carat,
-          color: a.color,
-          clarity: a.clarity,
-          cut: a.cut,
-          startPrice: a.startPrice,
-          currentBid: a.currentBid,
-          bidsCount: a.bidsCount,
-          timeLeft: calculateTimeLeft(a.endTime),
-          status: a.status,
-          bids: a.bids.map(b => ({
-            bidder: b.bidderName,
-            bidAmount: b.bidAmount,
-            time: formatTimeAgo(b.time)
-          })).reverse()
-        }));
-        setAuctions(mappedAuctions);
+        setAuctions(aucRes.data.data.auctions || []);
       }
 
       // 3. Fetch RFQs
@@ -848,95 +962,397 @@ export default function SellerDashboard() {
             )}
 
             {/* 3. AUCTIONS TAB */}
-            {currentTab === 'auctions' && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                
-                {/* Left Side: Active Auctions list */}
-                <div className="lg:col-span-2 space-y-6">
-                  <div className="bg-white rounded-[28px] p-8 border border-[#CBAD8D]/15 shadow-sm">
-                    <div className="flex justify-between items-center mb-6">
-                      <div className="flex items-center gap-2">
-                        <Gavel className="w-5 h-5 text-[#A48374]" />
-                        <h3 className="text-xl font-light text-[#3A2D28]" style={{ fontFamily: 'Georgia, serif' }}>Live Auctions</h3>
-                      </div>
-                      <button 
-                        onClick={() => navigate('/seller/create-auction')}
-                        className="px-4 py-2 bg-[#3A2D28] text-white text-[10px] font-bold uppercase tracking-wider rounded-full hover:bg-[#A48374] transition-colors cursor-pointer shadow-sm"
-                      >
-                        Start Auction
-                      </button>
-                    </div>
+            {currentTab === 'auctions' && (() => {
+              const liveAuctions = auctions.filter(a => getAuctionCategory(a) === 'Live Now');
+              const upcomingAuctions = auctions.filter(a => getAuctionCategory(a) === 'Upcoming');
+              const closedAuctions = auctions.filter(a => getAuctionCategory(a) === 'Closed');
 
-                    <div className="space-y-6">
-                      {auctions.map(a => (
-                        <div key={a.id} className="p-6 rounded-2xl border border-[#CBAD8D]/10 hover:border-[#A48374]/30 bg-[#FBF9F6]/50 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse" />
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-green-600">Active Listing</span>
-                            </div>
-                            <h4 className="text-lg font-bold text-[#3A2D28]">{a.title}</h4>
-                            <p className="text-xs text-[#A48374] font-medium">
-                              Category: {a.category} {a.carat && `• ${a.carat}ct • ${a.color} ${a.clarity}`}
-                            </p>
-                            <div className="flex items-center gap-4 text-xs font-semibold text-[#6B5549] pt-2">
-                              <span className="flex items-center gap-1">
-                                <Clock className="w-3.5 h-3.5 text-[#A48374]" /> {a.timeLeft} remaining
-                              </span>
-                              <span>•</span>
-                              <span>{a.bidsCount} bids submitted</span>
-                            </div>
+              const filteredAuctions = activeAuctionTab === 'Live Now'
+                ? liveAuctions
+                : activeAuctionTab === 'Upcoming'
+                  ? upcomingAuctions
+                  : closedAuctions;
+
+              return (
+                <div className="space-y-8">
+                {/* Dashboard Header Bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#CBAD8D]/20">
+                  <div>
+                    <span className="text-xs uppercase tracking-[0.3em]" style={{ color: '#A48374' }}>Live Bidding Hub</span>
+                    <h2 className="text-3xl mt-1 font-light text-[#3A2D28]" style={{ fontFamily: 'Georgia, serif' }}>Auction Management</h2>
+                  </div>
+                  <button 
+                    onClick={() => navigate('/seller/create-auction')}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-[#3A2D28] text-white text-xs font-bold uppercase tracking-wider rounded-full hover:bg-[#A48374] transition-all cursor-pointer shadow-md hover:shadow-lg"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Host New Auction
+                  </button>
+                </div>
+
+                {/* Sleek Tabs Navigation */}
+                <div className="flex border-b border-[#CBAD8D]/20">
+                  {['Live Now', 'Upcoming', 'Closed'].map((tab) => {
+                    const count = tab === 'Live Now' 
+                      ? liveAuctions.length 
+                      : tab === 'Upcoming' 
+                        ? upcomingAuctions.length 
+                        : closedAuctions.length;
+                    const isActive = activeAuctionTab === tab;
+                    
+                    return (
+                      <button
+                        key={tab}
+                        onClick={() => setActiveAuctionTab(tab)}
+                        className={`py-4 px-6 text-xs font-bold uppercase tracking-widest relative transition-all cursor-pointer ${
+                          isActive ? 'text-[#3A2D28]' : 'text-[#A48374] hover:text-[#3A2D28]'
+                        }`}
+                      >
+                        {tab} <span className="ml-1.5 px-2 py-0.5 rounded-full text-[9px] bg-[#FAF8F6] border border-[#CBAD8D]/15">{count}</span>
+                        {isActive && (
+                          <motion.div 
+                            layoutId="activeAuctionIndicator" 
+                            className="absolute bottom-0 left-0 right-0 h-1 bg-[#A48374]" 
+                          />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Auction Cards Grid */}
+                {filteredAuctions.length === 0 ? (
+                  <div className="bg-[#FAF8F6] rounded-3xl border border-[#CBAD8D]/15 p-16 text-center max-w-2xl mx-auto space-y-6 shadow-xs">
+                    <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center mx-auto text-[#A48374] shadow-xs">
+                      <Gavel className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-bold text-[#3A2D28]">No auctions listed under {activeAuctionTab}</h4>
+                      <p className="text-xs text-[#A48374] mt-2 leading-relaxed">
+                        Host an auction drop to list a diamond or jewelry piece for verified buyer bidding.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => navigate('/seller/create-auction')}
+                      className="px-6 py-3 border border-[#A48374] text-[#A48374] hover:bg-[#3A2D28] hover:text-white text-xs font-bold uppercase tracking-wider rounded-full transition-colors cursor-pointer"
+                    >
+                      + Host Auction Drop
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredAuctions.map((auc) => {
+                      const timer = getTimerBadge(auc);
+                      const buyerCount = getMockBuyersForAuction(auc).length;
+                      const hasBids = auc.bids && auc.bids.length > 0;
+                      const image = auc.productId?.images?.[0] || 'https://images.unsplash.com/photo-1599707367072-cd6ada2bc375?w=800';
+                      
+                      return (
+                        <div 
+                          key={auc._id} 
+                          className="bg-white rounded-2xl border border-[#CBAD8D]/15 hover:border-[#A48374]/55 hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col group"
+                        >
+                          {/* Image Box */}
+                          <div className="relative aspect-[4/3] w-full bg-[#F5F1EC] overflow-hidden">
+                            <img 
+                              src={image} 
+                              alt={auc.productId?.title || 'Jewelry stone'} 
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            />
+                            {/* Live Badge */}
+                            <span 
+                              className={`absolute top-4 left-4 inline-flex items-center px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider ${timer.style}`}
+                            >
+                              {timer.text}
+                            </span>
+                            {/* Registered badge */}
+                            <span className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-xs text-white px-2.5 py-1 rounded-md text-[9px] font-semibold tracking-wider flex items-center gap-1">
+                              <Users className="w-3 h-3 text-[#CBAD8D]" /> {buyerCount} Registered
+                            </span>
                           </div>
 
-                          <div className="flex items-end gap-6 md:text-right flex-row md:flex-col justify-between md:justify-start border-t md:border-t-0 border-[#CBAD8D]/10 pt-4 md:pt-0">
-                            <div>
-                              <p className="text-[10px] font-bold text-[#A48374] uppercase tracking-wider">Current Bid</p>
-                              <p className="text-2xl font-light text-[#3A2D28] mt-0.5">₹{a.currentBid.toLocaleString('en-IN')}</p>
-                              <p className="text-[10px] text-[#CBAD8D] font-bold uppercase mt-0.5">Reserve: ₹{a.startPrice.toLocaleString('en-IN')}</p>
+                          {/* Info Box */}
+                          <div className="p-6 flex-1 flex flex-col justify-between space-y-5">
+                            <div className="space-y-2.5">
+                              <div className="flex justify-between items-start gap-2">
+                                <span className="text-[10px] uppercase font-bold tracking-widest text-[#A48374]">
+                                  {auc.productId?.category || 'Luxury Stone'}
+                                </span>
+                                {auc.productId?.certificateLab && auc.productId.certificateLab !== 'None' && (
+                                  <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 bg-[#FAF8F6] border border-[#CBAD8D]/20 text-[#3A2D28] rounded">
+                                    {auc.productId.certificateLab}
+                                  </span>
+                                )}
+                              </div>
+                              <h3 className="font-bold text-sm text-[#3A2D28] line-clamp-1 group-hover:text-[#A48374] transition-colors">
+                                {auc.productId?.title || 'Untitled Listing'}
+                              </h3>
+                              <p className="text-[11px] text-[#A48374] leading-relaxed line-clamp-2">
+                                {auc.productId?.category === 'Diamond' 
+                                  ? `${auc.productId?.carat} Carat • ${auc.productId?.shape} Shape • ${auc.productId?.color} Color • ${auc.productId?.clarity} Clarity • ${auc.productId?.cut} Cut`
+                                  : `${auc.productId?.jewelryType} • ${auc.productId?.metalType} • ${auc.productId?.weightGrams}g`
+                                }
+                              </p>
                             </div>
+
+                            {/* Metrices */}
+                            <div className="grid grid-cols-3 gap-2 py-3 border-t border-b border-[#CBAD8D]/10 text-xs bg-[#FAF8F6]/30 px-2 rounded-xl">
+                              <div>
+                                <p className="text-[9px] uppercase tracking-wider text-[#A48374] font-semibold">Reserve</p>
+                                <p className="font-semibold text-xs text-[#3A2D28] mt-0.5">₹{auc.startPrice.toLocaleString('en-IN')}</p>
+                              </div>
+                              <div>
+                                <p className="text-[9px] uppercase tracking-wider text-[#A48374] font-semibold">High Bid</p>
+                                <p className="font-bold text-xs text-[#3A2D28] mt-0.5">₹{auc.currentHighestBid.toLocaleString('en-IN')}</p>
+                              </div>
+                              <div>
+                                <p className="text-[9px] uppercase tracking-wider text-[#A48374] font-semibold">Min Increment</p>
+                                <p className="font-semibold text-xs text-[#A48374] mt-0.5">₹{auc.minIncrement.toLocaleString('en-IN')}</p>
+                              </div>
+                            </div>
+
                             <button 
-                              onClick={() => {
-                                alert(`Opening bids log for ${a.title}. You have full control over bid validation.`);
-                              }}
-                              className="px-4 py-2 border border-[#A48374] hover:bg-[#A48374] hover:text-white text-[10px] font-bold uppercase tracking-wider text-[#A48374] rounded-full transition-colors cursor-pointer"
+                              onClick={() => setSelectedManageAuction(auc)}
+                              className="w-full py-3 bg-[#FAF8F6] hover:bg-[#A48374] hover:text-white border border-[#CBAD8D]/30 hover:border-transparent text-[10px] font-bold uppercase tracking-widest text-[#A48374] rounded-full transition-all cursor-pointer shadow-xs"
                             >
-                              Verify Bids
+                              Manage Auction
                             </button>
                           </div>
                         </div>
-                      ))}
-                    </div>
+                      );
+                    })}
                   </div>
-                </div>
+                )}
 
-                {/* Right Side: Live bid feeds */}
-                <div className="lg:col-span-1 space-y-6">
-                  <div className="bg-white rounded-[28px] p-8 border border-[#CBAD8D]/15 shadow-sm">
-                    <h3 className="text-lg font-light text-[#3A2D28] mb-4" style={{ fontFamily: 'Georgia, serif' }}>Live Auction Feed</h3>
-                    <p className="text-xs text-[#A48374] mb-6">Real-time bids being submitted by verified buyers on Zivora Live.</p>
-                    
-                    <div className="space-y-4">
-                      {auctions.flatMap(a => a.bids.map(b => ({ ...b, itemTitle: a.title }))).slice(0, 5).map((bid, i) => (
-                        <div key={i} className="p-3.5 rounded-xl bg-[#F7F3EF]/50 border border-[#CBAD8D]/5 text-xs flex justify-between items-start gap-4">
+                {/* Manage Auction Detailed Overlay Modal */}
+                <AnimatePresence>
+                  {selectedManageAuction && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-end">
+                      {/* Backdrop */}
+                      <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setSelectedManageAuction(null)}
+                        className="absolute inset-0 bg-black/45 backdrop-blur-xs" 
+                      />
+
+                      {/* Modal Panel */}
+                      <motion.div 
+                        initial={{ x: '100%' }}
+                        animate={{ x: 0 }}
+                        exit={{ x: '100%' }}
+                        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                        className="relative w-full max-w-4xl h-full bg-[#F7F3EF] shadow-2xl flex flex-col z-10"
+                      >
+                        {/* Header */}
+                        <div className="p-6 bg-white border-b border-[#CBAD8D]/20 flex justify-between items-center">
                           <div>
-                            <p className="font-bold text-[#3A2D28]">{bid.bidder}</p>
-                            <p className="text-[10px] text-[#A48374] truncate mt-0.5 max-w-[150px]">{bid.itemTitle}</p>
-                            <span className="text-[9px] text-[#CBAD8D] block mt-1">{bid.time}</span>
+                            <span className="text-[10px] uppercase font-bold tracking-widest text-[#A48374]">Auction Console</span>
+                            <h3 className="text-xl font-semibold text-[#3A2D28] mt-1">{selectedManageAuction.productId?.title || 'Auction details'}</h3>
                           </div>
-                          <div className="text-right">
-                            <span className="inline-block px-2.5 py-0.5 bg-green-50 text-green-700 rounded-full font-bold text-[9px] uppercase tracking-wider">
-                              + Bid
-                            </span>
-                            <p className="font-semibold text-[#3A2D28] mt-1.5">₹{bid.bidAmount.toLocaleString('en-IN')}</p>
+                          <button 
+                            onClick={() => setSelectedManageAuction(null)}
+                            className="p-2.5 rounded-full hover:bg-[#FAF8F6] text-[#A48374] hover:text-[#3A2D28] transition-all cursor-pointer"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+
+                        {/* Content Area */}
+                        <div className="flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-12">
+                          {/* Left Column - Product Specifications & Status */}
+                          <div className="lg:col-span-7 p-8 space-y-6 border-r border-[#CBAD8D]/15">
+                            {/* Image Showcase */}
+                            <div className="aspect-[16/10] w-full rounded-2xl overflow-hidden bg-[#FAF8F6] border border-[#CBAD8D]/15">
+                              <img 
+                                src={selectedManageAuction.productId?.images?.[0] || 'https://images.unsplash.com/photo-1599707367072-cd6ada2bc375?w=800'} 
+                                alt="Stone product" 
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+
+                            {/* Specifications Card */}
+                            <div className="bg-white p-6 rounded-2xl border border-[#CBAD8D]/10 shadow-xs space-y-4">
+                              <h4 className="text-xs font-bold uppercase tracking-widest text-[#A48374] border-b border-[#CBAD8D]/10 pb-2">Technical Specifications</h4>
+                              
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
+                                <div>
+                                  <p className="text-[10px] text-[#A48374] uppercase font-semibold">Category</p>
+                                  <p className="font-bold text-[#3A2D28] mt-0.5">{selectedManageAuction.productId?.category}</p>
+                                </div>
+                                {selectedManageAuction.productId?.category === 'Diamond' ? (
+                                  <>
+                                    <div>
+                                      <p className="text-[10px] text-[#A48374] uppercase font-semibold">Carat Weight</p>
+                                      <p className="font-bold text-[#3A2D28] mt-0.5">{selectedManageAuction.productId?.carat} ct</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-[10px] text-[#A48374] uppercase font-semibold">Shape</p>
+                                      <p className="font-bold text-[#3A2D28] mt-0.5">{selectedManageAuction.productId?.shape}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-[10px] text-[#A48374] uppercase font-semibold">Color Grade</p>
+                                      <p className="font-bold text-[#3A2D28] mt-0.5">{selectedManageAuction.productId?.color}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-[10px] text-[#A48374] uppercase font-semibold">Clarity</p>
+                                      <p className="font-bold text-[#3A2D28] mt-0.5">{selectedManageAuction.productId?.clarity}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-[10px] text-[#A48374] uppercase font-semibold">Cut Grade</p>
+                                      <p className="font-bold text-[#3A2D28] mt-0.5">{selectedManageAuction.productId?.cut}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-[10px] text-[#A48374] uppercase font-semibold">Certificate Lab</p>
+                                      <p className="font-bold text-[#3A2D28] mt-0.5">{selectedManageAuction.productId?.certificateLab || 'None'}</p>
+                                    </div>
+                                    {selectedManageAuction.productId?.certificateNumber && (
+                                      <div>
+                                        <p className="text-[10px] text-[#A48374] uppercase font-semibold">Certificate #</p>
+                                        <p className="font-bold font-mono text-[#3A2D28] mt-0.5">{selectedManageAuction.productId?.certificateNumber}</p>
+                                      </div>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    <div>
+                                      <p className="text-[10px] text-[#A48374] uppercase font-semibold">Jewelry Type</p>
+                                      <p className="font-bold text-[#3A2D28] mt-0.5">{selectedManageAuction.productId?.jewelryType}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-[10px] text-[#A48374] uppercase font-semibold">Metal Type</p>
+                                      <p className="font-bold text-[#3A2D28] mt-0.5">{selectedManageAuction.productId?.metalType}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-[10px] text-[#A48374] uppercase font-semibold">Weight</p>
+                                      <p className="font-bold text-[#3A2D28] mt-0.5">{selectedManageAuction.productId?.weightGrams} g</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-[10px] text-[#A48374] uppercase font-semibold">Target Gender</p>
+                                      <p className="font-bold text-[#3A2D28] mt-0.5">{selectedManageAuction.productId?.gender}</p>
+                                    </div>
+                                    {selectedManageAuction.productId?.diamondDetails && (
+                                      <div className="col-span-2">
+                                        <p className="text-[10px] text-[#A48374] uppercase font-semibold">Diamond Details</p>
+                                        <p className="font-bold text-[#3A2D28] mt-0.5">{selectedManageAuction.productId?.diamondDetails}</p>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+
+                              <div className="pt-2 border-t border-[#CBAD8D]/10">
+                                <p className="text-[10px] text-[#A48374] uppercase font-semibold">Product Description</p>
+                                <p className="text-xs text-[#3A2D28] mt-1 leading-relaxed">{selectedManageAuction.productId?.description}</p>
+                              </div>
+                            </div>
+
+                            {/* Rules & Parameters Box */}
+                            <div className="bg-white p-6 rounded-2xl border border-[#CBAD8D]/10 shadow-xs space-y-4">
+                              <h4 className="text-xs font-bold uppercase tracking-widest text-[#A48374] border-b border-[#CBAD8D]/10 pb-2">Bidding Parameters & Dates</h4>
+                              
+                              <div className="grid grid-cols-2 gap-4 text-xs">
+                                <div>
+                                  <p className="text-[10px] text-[#A48374] uppercase font-semibold">Starting Price</p>
+                                  <p className="font-bold text-sm text-[#3A2D28] mt-0.5">₹{selectedManageAuction.startPrice.toLocaleString('en-IN')}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-[#A48374] uppercase font-semibold">Minimum Increment</p>
+                                  <p className="font-bold text-sm text-[#3A2D28] mt-0.5">₹{selectedManageAuction.minIncrement.toLocaleString('en-IN')}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-[#A48374] uppercase font-semibold">Registration Deadline</p>
+                                  <p className="font-medium text-[#3A2D28] mt-0.5">{new Date(selectedManageAuction.registrationDeadline).toLocaleString()}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-[#A48374] uppercase font-semibold">Bidding Duration</p>
+                                  <p className="font-medium text-[#3A2D28] mt-0.5">
+                                    {new Date(selectedManageAuction.startTime).toLocaleString()} - {new Date(selectedManageAuction.endTime).toLocaleString()}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right Column - Registered Buyers & Bid Log History */}
+                          <div className="lg:col-span-5 p-8 flex flex-col space-y-6">
+                            {/* Registered Buyers */}
+                            <div className="bg-white p-6 rounded-2xl border border-[#CBAD8D]/10 shadow-xs flex flex-col h-[230px]">
+                              <h4 className="text-xs font-bold uppercase tracking-widest text-[#A48374] border-b border-[#CBAD8D]/10 pb-2 mb-3">
+                                Registered Buyers ({getMockBuyersForAuction(selectedManageAuction).length})
+                              </h4>
+                              <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                                {getMockBuyersForAuction(selectedManageAuction).map((buyer, idx) => (
+                                  <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl hover:bg-[#FAF8F6] transition-colors border border-[#CBAD8D]/5">
+                                    <div className="min-w-0">
+                                      <p className="font-semibold text-xs text-[#3A2D28] truncate">{buyer.name}</p>
+                                      <p className="text-[9px] text-[#A48374] truncate mt-0.5">{buyer.email}</p>
+                                    </div>
+                                    <span className="bg-[#F5F1EC] text-[#3A2D28] font-mono text-[9px] font-bold px-2 py-0.5 rounded-md border border-[#CBAD8D]/15">
+                                      {buyer.id}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Bids Timeline (Only for Live / Closed) */}
+                            <div className="bg-white p-6 rounded-2xl border border-[#CBAD8D]/10 shadow-xs flex flex-col flex-1 min-h-[260px] h-[320px]">
+                              <h4 className="text-xs font-bold uppercase tracking-widest text-[#A48374] border-b border-[#CBAD8D]/10 pb-2 mb-3">
+                                Bidding Feed & History
+                              </h4>
+                              
+                              {getAuctionCategory(selectedManageAuction) === 'Upcoming' ? (
+                                <div className="flex-1 flex flex-col items-center justify-center text-center p-4 text-[#A48374] italic">
+                                  <Clock className="w-8 h-8 mb-2 opacity-45" />
+                                  <p className="text-[11px]">Bidding starts soon. Bids will record here when the auction drops live.</p>
+                                </div>
+                              ) : (
+                                <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                                  {getMockBidsForAuction(selectedManageAuction).length === 0 ? (
+                                    <p className="text-center text-xs text-[#A48374] italic py-8">No bids have been submitted yet.</p>
+                                  ) : (
+                                    getMockBidsForAuction(selectedManageAuction).map((bid, i) => (
+                                      <div key={i} className="flex justify-between items-center p-3 rounded-xl bg-[#FAF8F6] border border-[#CBAD8D]/10">
+                                        <div className="space-y-1">
+                                          <p className="text-xs font-bold text-[#3A2D28]">{bid.bidderName}</p>
+                                          <span className="text-[9px] text-[#A48374]">
+                                            {new Date(bid.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                          </span>
+                                        </div>
+                                        <div className="text-right">
+                                          <span className="bg-green-50 border border-green-200 text-green-700 text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                            Bid
+                                          </span>
+                                          <p className="font-semibold text-xs text-[#3A2D28] mt-1">₹{bid.amount.toLocaleString('en-IN')}</p>
+                                        </div>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Cancel Button - visible for Live/Upcoming auctions */}
+                            {(getAuctionCategory(selectedManageAuction) === 'Live Now' || getAuctionCategory(selectedManageAuction) === 'Upcoming') && (
+                              <button
+                                onClick={() => handleCancelAuction(selectedManageAuction._id)}
+                                disabled={isCancelling}
+                                className="w-full py-3.5 border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-50 text-[10px] font-bold uppercase tracking-widest rounded-full transition-all cursor-pointer shadow-xs text-center"
+                              >
+                                {isCancelling ? 'Processing Reversion...' : 'Cancel Auction Listing'}
+                              </button>
+                            )}
                           </div>
                         </div>
-                      ))}
+                      </motion.div>
                     </div>
-                  </div>
-                </div>
-
+                  )}
+                </AnimatePresence>
               </div>
-            )}
+            );
+          })()}
 
             {/* 4. RFQ TAB */}
             {currentTab === 'rfqs' && (
