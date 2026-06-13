@@ -14,6 +14,7 @@ import Checkout from './pages/Checkout';
 import OrderSuccess from './pages/OrderSuccess';
 import LiveAuctionRoom from './pages/LiveAuctionRoom';
 import CreateAuction from './pages/CreateAuction';
+import Auctions from './pages/Auctions';
 import Header from './components/Header';
 import Footer from './components/Footer';
 
@@ -39,6 +40,7 @@ function App() {
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/order/success" element={<OrderSuccess />} />
             <Route path="/auctions/:id" element={<LiveAuctionRoom />} />
+            <Route path="/auctions" element={<Auctions />} />
             <Route path="/seller/create-auction" element={<CreateAuction />} />
           </Routes>
         </main>
