@@ -9,6 +9,7 @@ router.use(protect);
 router.get('/dashboard', auctionController.getAuctionDashboard);
 router.post('/create', restrictTo('seller'), auctionController.createAuction);
 router.get('/seller', restrictTo('seller'), auctionController.getSellerAuctions);
+router.patch('/:id/cancel', restrictTo('seller'), auctionController.cancelAuction);
 router.get('/my-bids', restrictTo('buyer'), auctionController.getMyBids);
 router.get('/:id', auctionController.getAuctionById);
 router.post('/:id/register', restrictTo('buyer'), auctionController.registerForAuction);

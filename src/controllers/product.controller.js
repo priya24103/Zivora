@@ -103,7 +103,7 @@ exports.getAllProducts = async (req, res, next) => {
     
     // Status defaults to 'available' (which includes both available and on_memo products)
     const status = req.query.status || 'available';
-    const filter = { listingType: 'direct_sale' };
+    const filter = { listingType: { $in: ['direct_sale', null, undefined] } };
     if (status === 'available') {
       filter.status = { $in: ['available', 'on_memo'] };
     } else if (status !== 'all') {

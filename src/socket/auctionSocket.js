@@ -21,13 +21,14 @@ module.exports = (io) => {
           return;
         }
 
-        // Verify registration
+        // Verify registration or host (seller) permissions
         const isRegistered = auction.registeredBuyers.some(
           (buyerId) => buyerId.toString() === userId.toString()
         );
+        const isHost = auction.sellerId.toString() === userId.toString();
 
-        if (!isRegistered) {
-          socket.emit('error', { message: 'Access denied. You are not registered for this auction.' });
+        if (!isRegistered && !isHost) {
+          socket.emit('error', { message: 'Access denied. You must be registered or be the auction owner to join.' });
           socket.disconnect(true);
           return;
         }
@@ -68,7 +69,27 @@ module.exports = (io) => {
           return;
         }
 
-        if (auction.status !== 'active' || new Date(auction.endTime) < new Date()) {
+        // Verify registration
+        const isRegistered = auction.registeredBuyers.some(
+          (buyerId) => buyerId.toString() === userId.toString()
+        );
+        if (!isRegistered) {
+          socket.emit('error', { message: 'Access denied. You must be registered for this auction to place a bid.' });
+          return;
+        }
+
+        const now = new Date();
+        if (now < new Date(auction.startTime)) {
+          socket.emit('bid_error', { message: 'The auction has not started yet. Bidding opens when registration closes.' });
+          return;
+        }
+
+        if (auction.status === 'pending') {
+          auction.status = 'active';
+          await auction.save();
+        }
+
+        if (auction.status !== 'active' || new Date(auction.endTime) < now) {
           socket.emit('error', { message: 'This auction has ended or is not active' });
           return;
         }

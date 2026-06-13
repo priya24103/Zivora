@@ -127,6 +127,13 @@ exports.createAuction = async (req, res, next) => {
       });
     }
 
+    if (parsedEndTime <= parsedRegDeadline) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Auction end time must occur after the registration deadline'
+      });
+    }
+
     const auction = new Auction({
       productId: createdProduct._id,
       sellerId,
@@ -136,8 +143,8 @@ exports.createAuction = async (req, res, next) => {
       highestBidder: null,
       registrationDeadline: parsedRegDeadline,
       endTime: parsedEndTime,
-      startTime: startTime ? new Date(startTime) : new Date(),
-      status: 'active',
+      startTime: parsedRegDeadline, // Set startTime exactly equal to registrationDeadline
+      status: 'pending', // Initialize as pending
       bidsCount: 0,
       registeredBuyers: [],
       bids: []
@@ -234,19 +241,20 @@ exports.getAuctionDashboard = async (req, res, next) => {
   try {
     const now = new Date();
 
-    // Upcoming: status is active/pending and startTime > now, or registration deadline is in the future and startTime > now
+    // Upcoming: status is pending/active and startTime > now
     const upcoming = await Auction.find({
       $or: [
-        { status: 'pending' },
+        { status: 'pending', startTime: { $gt: now } },
         { status: 'active', startTime: { $gt: now } }
       ]
     }).populate('productId').populate('sellerId', 'name email').sort({ startTime: 1 });
 
-    // Live: status is active and startTime <= now and endTime >= now
+    // Live: status is active/pending and startTime <= now and endTime >= now
     const live = await Auction.find({
-      status: 'active',
-      startTime: { $lte: now },
-      endTime: { $gte: now }
+      $or: [
+        { status: 'active', startTime: { $lte: now }, endTime: { $gte: now } },
+        { status: 'pending', startTime: { $lte: now }, endTime: { $gte: now } }
+      ]
     }).populate('productId').populate('sellerId', 'name email').sort({ endTime: 1 });
 
     // Closed: status is completed/cancelled or endTime < now
@@ -254,7 +262,8 @@ exports.getAuctionDashboard = async (req, res, next) => {
       $or: [
         { status: 'completed' },
         { status: 'cancelled' },
-        { status: 'active', endTime: { $lt: now } }
+        { status: 'active', endTime: { $lt: now } },
+        { status: 'pending', endTime: { $lt: now } }
       ]
     }).populate('productId').populate('sellerId', 'name email').sort({ endTime: -1 });
 
@@ -274,11 +283,14 @@ exports.getAuctionDashboard = async (req, res, next) => {
 // @desc    Get all active auctions
 // @route   GET /api/auctions
 // @access  Private
+// exports.getActiveAuctions = async (req, res, next) => {
 exports.getActiveAuctions = async (req, res, next) => {
   try {
     const auctions = await Auction.find({
-      status: 'active',
-      endTime: { $gt: new Date() }
+      $or: [
+        { status: 'active', endTime: { $gt: new Date() } },
+        { status: 'pending', startTime: { $lte: new Date() }, endTime: { $gt: new Date() } }
+      ]
     }).populate('productId').sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -297,12 +309,56 @@ exports.getActiveAuctions = async (req, res, next) => {
 exports.getSellerAuctions = async (req, res, next) => {
   try {
     const sellerId = req.user._id;
-    const auctions = await Auction.find({ sellerId }).populate('productId').sort({ createdAt: -1 });
+    const auctions = await Auction.find({ sellerId })
+      .populate('productId')
+      .populate('registeredBuyers', 'name email phone')
+      .sort({ createdAt: -1 });
 
     res.status(200).json({
       status: 'success',
       results: auctions.length,
       data: { auctions }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Cancel an auction
+// @route   PATCH /api/auctions/:id/cancel
+// @access  Private (Seller only)
+exports.cancelAuction = async (req, res, next) => {
+  try {
+    const auctionId = req.params.id;
+    const sellerId = req.user._id;
+
+    const auction = await Auction.findOne({ _id: auctionId, sellerId });
+    if (!auction) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Auction not found or you are not authorized to cancel it'
+      });
+    }
+
+    if (auction.status === 'completed' || auction.status === 'cancelled') {
+      return res.status(400).json({
+        status: 'error',
+        message: `Auction is already ${auction.status}`
+      });
+    }
+
+    auction.status = 'cancelled';
+    await auction.save();
+
+    // Revert product status back to available if it was on_memo
+    if (auction.productId) {
+      await Product.findByIdAndUpdate(auction.productId, { status: 'available' });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Auction cancelled successfully',
+      data: { auction }
     });
   } catch (error) {
     next(error);
@@ -345,10 +401,23 @@ exports.placeBid = async (req, res, next) => {
       });
     }
 
-    if (auction.status !== 'active' || auction.endTime < new Date()) {
+    const now = new Date();
+    if (now < new Date(auction.startTime)) {
       return res.status(400).json({
         status: 'error',
-        message: 'Auction has ended'
+        message: 'The auction has not started yet. Bidding opens when registration closes.'
+      });
+    }
+
+    if (auction.status === 'pending') {
+      auction.status = 'active';
+      await auction.save();
+    }
+
+    if (auction.status !== 'active' || new Date(auction.endTime) < now) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Auction has ended or is not active'
       });
     }
 
@@ -448,7 +517,8 @@ exports.getAuctionById = async (req, res, next) => {
   try {
     const auction = await Auction.findById(req.params.id)
       .populate('productId')
-      .populate('sellerId', 'name email');
+      .populate('sellerId', 'name email')
+      .populate('registeredBuyers', 'name email phone');
 
     if (!auction) {
       return res.status(404).json({
