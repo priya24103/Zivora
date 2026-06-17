@@ -97,13 +97,22 @@ export default function LiveAuctionRoom() {
     // Handle access denial or other socket errors
     socket.on('error', (err) => {
       console.error('Socket error:', err);
-      setError(err.message || 'An error occurred. Connection closed.');
-      // If permission denied, kick them out
-      if (err.message && err.message.toLowerCase().includes('access denied')) {
+      const msg = err.message || '';
+      if (msg.toLowerCase().includes('access denied') || msg.toLowerCase().includes('not found')) {
+        setError(msg || 'An error occurred. Connection closed.');
+        // If permission denied, kick them out
         setTimeout(() => {
           navigate('/buyer/dashboard');
         }, 3000);
+      } else {
+        alert(msg);
       }
+    });
+
+    // Handle specific bidding errors
+    socket.on('bid_error', (err) => {
+      console.error('Bid error:', err);
+      alert(err.message || 'Bidding error occurred');
     });
 
     // Handle successful join
