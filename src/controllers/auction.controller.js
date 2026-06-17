@@ -6,8 +6,12 @@ const { Product, Diamond, Jewelry } = require('../models/Product');
 // @access  Private (Seller only)
 exports.createAuction = async (req, res, next) => {
   let createdProduct = null;
+  let shouldRollbackProduct = false;
   try {
     const { 
+      productId,
+      duration,
+
       // Product details
       category, 
       title, 
@@ -45,89 +49,159 @@ exports.createAuction = async (req, res, next) => {
       });
     }
 
-    if (!category || !title || !description || !startPrice || !registrationDeadline || !endTime) {
+    if (!startPrice) {
       return res.status(400).json({
         status: 'error',
-        message: 'Product category, title, description, starting price, registration deadline, and end time are required'
+        message: 'Starting price is required'
       });
     }
 
-    // 1. Prepare base product payload
-    const productPayload = {
-      sellerId,
-      title,
-      description,
-      price: Number(startPrice),
-      stock: 1,
-      images: images || [],
-      listingType: 'auction_only',
-      status: 'available'
-    };
+    let resolvedRegDeadline;
+    let resolvedEndTime;
 
-    // 2. Instantiate correct model based on category
-    let productInstance;
-    if (category === 'Diamond' || category === 'Loose Diamond') {
-      if (!carat || !color || !clarity || !cut || !shape) {
-        return res.status(400).json({
+    if (productId) {
+      // Create auction for existing product
+      const existingProduct = await Product.findById(productId);
+      if (!existingProduct) {
+        return res.status(404).json({
           status: 'error',
-          message: 'Carat, color, clarity, cut, and shape are required for Diamonds'
+          message: 'Product not found'
         });
       }
-      productInstance = new Diamond({
-        ...productPayload,
-        carat: Number(carat),
-        color,
-        clarity,
-        cut,
-        shape,
-        certificateLab: certificateLab || 'None',
-        certificateNumber,
-        certificateFileUrl
-      });
-    } else if (category === 'Jewelry') {
-      if (!jewelryType || !metalType || !weightGrams || !gender) {
-        return res.status(400).json({
+
+      if (existingProduct.sellerId.toString() !== sellerId.toString()) {
+        return res.status(403).json({
           status: 'error',
-          message: 'Jewelry type, metal type, weight in grams, and target gender are required for Jewelry'
+          message: 'You do not own this product'
         });
       }
-      productInstance = new Jewelry({
-        ...productPayload,
-        jewelryType,
-        metalType,
-        weightGrams: Number(weightGrams),
-        gender,
-        diamondDetails
+
+      // Check if product is already in an active or pending auction
+      const existingAuction = await Auction.findOne({
+        productId,
+        status: { $in: ['pending', 'active'] }
       });
+      if (existingAuction) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'This product is already in an active or pending auction'
+        });
+      }
+
+      if (!registrationDeadline) {
+        // Start immediately (1 second in the past so bidding starts immediately)
+        resolvedRegDeadline = new Date(Date.now() - 1000);
+      } else {
+        resolvedRegDeadline = new Date(registrationDeadline);
+      }
+
+      if (!endTime) {
+        let durationMs = 24 * 60 * 60 * 1000; // default 24h
+        if (duration) {
+          const match = duration.match(/^(\d+)([hdw])$/);
+          if (match) {
+            const val = parseInt(match[1]);
+            const unit = match[2];
+            if (unit === 'h') durationMs = val * 60 * 60 * 1000;
+            else if (unit === 'd') durationMs = val * 24 * 60 * 60 * 1000;
+            else if (unit === 'w') durationMs = val * 7 * 24 * 60 * 60 * 1000;
+          }
+        }
+        resolvedEndTime = new Date(resolvedRegDeadline.getTime() + durationMs);
+      } else {
+        resolvedEndTime = new Date(endTime);
+      }
+
+      // Set status to 'on_memo'
+      existingProduct.status = 'on_memo';
+      await existingProduct.save();
+      createdProduct = existingProduct;
     } else {
-      return res.status(400).json({
-        status: 'error',
-        message: `Invalid product category: "${category}". Category must be either "Diamond" or "Jewelry".`
-      });
+      // 1-Step creation flow for new product
+      if (!category || !title || !description || !registrationDeadline || !endTime) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Product category, title, description, starting price, registration deadline, and end time are required for a new product'
+        });
+      }
+
+      resolvedRegDeadline = new Date(registrationDeadline);
+      resolvedEndTime = new Date(endTime);
+
+      // 1. Prepare base product payload
+      const productPayload = {
+        sellerId,
+        title,
+        description,
+        price: Number(startPrice),
+        stock: 1,
+        images: images || [],
+        listingType: 'auction_only',
+        status: 'on_memo' // Since it's immediately put up for auction, set status to 'on_memo' directly
+      };
+
+      // 2. Instantiate correct model based on category
+      let productInstance;
+      if (category === 'Diamond' || category === 'Loose Diamond') {
+        if (!carat || !color || !clarity || !cut || !shape) {
+          return res.status(400).json({
+            status: 'error',
+            message: 'Carat, color, clarity, cut, and shape are required for Diamonds'
+          });
+        }
+        productInstance = new Diamond({
+          ...productPayload,
+          carat: Number(carat),
+          color,
+          clarity,
+          cut,
+          shape,
+          certificateLab: certificateLab || 'None',
+          certificateNumber,
+          certificateFileUrl
+        });
+      } else if (category === 'Jewelry') {
+        if (!jewelryType || !metalType || !weightGrams || !gender) {
+          return res.status(400).json({
+            status: 'error',
+            message: 'Jewelry type, metal type, weight in grams, and target gender are required for Jewelry'
+          });
+        }
+        productInstance = new Jewelry({
+          ...productPayload,
+          jewelryType,
+          metalType,
+          weightGrams: Number(weightGrams),
+          gender,
+          diamondDetails
+        });
+      } else {
+        return res.status(400).json({
+          status: 'error',
+          message: `Invalid product category: "${category}". Category must be either "Diamond" or "Jewelry".`
+        });
+      }
+
+      // Save Product
+      createdProduct = await productInstance.save();
+      shouldRollbackProduct = true;
     }
 
-    // Step A: Save Product
-    createdProduct = await productInstance.save();
-
-    // Step B: Prepare and save Auction
-    const parsedRegDeadline = new Date(registrationDeadline);
-    const parsedEndTime = new Date(endTime);
-
-    if (isNaN(parsedRegDeadline.getTime())) {
+    if (isNaN(resolvedRegDeadline.getTime())) {
       return res.status(400).json({
         status: 'error',
         message: 'Invalid registration deadline date format'
       });
     }
 
-    if (isNaN(parsedEndTime.getTime())) {
+    if (isNaN(resolvedEndTime.getTime())) {
       return res.status(400).json({
         status: 'error',
         message: 'Invalid auction end time date format'
       });
     }
 
-    if (parsedEndTime <= parsedRegDeadline) {
+    if (resolvedEndTime <= resolvedRegDeadline) {
       return res.status(400).json({
         status: 'error',
         message: 'Auction end time must occur after the registration deadline'
@@ -141,9 +215,9 @@ exports.createAuction = async (req, res, next) => {
       minIncrement: Number(minIncrement) || 100,
       currentHighestBid: Number(startPrice),
       highestBidder: null,
-      registrationDeadline: parsedRegDeadline,
-      endTime: parsedEndTime,
-      startTime: parsedRegDeadline, // Set startTime exactly equal to registrationDeadline
+      registrationDeadline: resolvedRegDeadline,
+      endTime: resolvedEndTime,
+      startTime: resolvedRegDeadline, // Set startTime exactly equal to registrationDeadline
       status: 'pending', // Initialize as pending
       bidsCount: 0,
       registeredBuyers: [],
@@ -155,7 +229,7 @@ exports.createAuction = async (req, res, next) => {
     // Step C: Return success response
     res.status(201).json({
       status: 'success',
-      message: 'Auction and product created successfully in a 1-step flow',
+      message: 'Auction created successfully',
       data: {
         auction: savedAuction,
         product: createdProduct
@@ -163,13 +237,18 @@ exports.createAuction = async (req, res, next) => {
     });
 
   } catch (error) {
-    // Rollback: if product was saved but auction creation failed, delete the product to prevent orphans
+    // Rollback: if product was saved but auction creation failed, delete the product/restore status to prevent orphans
     if (createdProduct && createdProduct._id) {
       try {
-        await Product.findByIdAndDelete(createdProduct._id);
-        console.log(`Rollback completed: Deleted orphaned product ${createdProduct._id}`);
+        if (shouldRollbackProduct) {
+          await Product.findByIdAndDelete(createdProduct._id);
+          console.log(`Rollback completed: Deleted orphaned product ${createdProduct._id}`);
+        } else {
+          await Product.findByIdAndUpdate(createdProduct._id, { status: 'available' });
+          console.log(`Rollback completed: Restored product ${createdProduct._id} status to available`);
+        }
       } catch (deleteErr) {
-        console.error(`Rollback failed to delete product ${createdProduct._id}:`, deleteErr);
+        console.error(`Rollback failed for product ${createdProduct._id}:`, deleteErr);
       }
     }
 
@@ -201,10 +280,10 @@ exports.registerForAuction = async (req, res, next) => {
       });
     }
 
-    if (new Date() >= new Date(auction.registrationDeadline)) {
+    if (new Date() >= new Date(auction.endTime)) {
       return res.status(400).json({
         status: 'error',
-        message: 'Registration deadline has passed'
+        message: 'Auction has already ended'
       });
     }
 
