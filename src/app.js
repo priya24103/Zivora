@@ -13,6 +13,7 @@ const conversationRoutes = require('./routes/conversation.routes');
 const cartRoutes = require('./routes/cart.routes');
 const orderRoutes = require('./routes/order.routes');
 const paymentRoutes = require('./routes/payment.routes');
+const offerRoutes = require('./routes/offer.routes');
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.use('/api/conversations', conversationRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/offers', offerRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
