@@ -30,10 +30,12 @@ import {
   Users,
   Calendar,
   ChevronLeft,
-  ExternalLink
+  ExternalLink,
+  Handshake
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
+import OfferInbox from '../components/OfferInbox';
 import { io } from 'socket.io-client';
 
 export default function SellerDashboard() {
@@ -632,13 +634,13 @@ export default function SellerDashboard() {
         {/* ─── TAB NAVIGATION SWITCH ──────────────────────────────────────── */}
         {/* We keep this hidden visually as header is doing the tab work, but add responsive controls for dashboard page */}
         <div className="flex md:hidden overflow-x-auto gap-2 pb-4 mb-6 border-b border-[#CBAD8D]/20">
-          {['overview', 'inventory', 'auctions', 'rfqs', 'messages', 'analytics'].map((tab) => (
+          {['overview', 'inventory', 'auctions', 'rfqs', 'negotiations', 'messages', 'analytics'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider whitespace-nowrap ${currentTab === tab ? 'bg-[#3A2D28] text-white' : 'bg-white text-[#A48374] border border-[#CBAD8D]/25'}`}
             >
-              {tab === 'rfqs' ? 'Buyer RFQs' : tab}
+              {tab === 'negotiations' ? 'Direct Offers' : tab === 'rfqs' ? 'Buyer RFQs' : tab}
             </button>
           ))}
         </div>
@@ -1638,6 +1640,17 @@ export default function SellerDashboard() {
                   )}
                 </div>
 
+              </div>
+            )}
+
+            {/* 4.5 NEGOTIATIONS TAB */}
+            {currentTab === 'negotiations' && (
+              <div className="bg-white rounded-[28px] p-8 border border-[#CBAD8D]/15 shadow-sm">
+                <div className="flex items-center gap-2 mb-6 border-b border-[#CBAD8D]/10 pb-4">
+                  <Handshake className="w-5 h-5 text-[#A48374]" />
+                  <h2 className="text-2xl text-[#3A2D28]" style={{ fontFamily: 'Georgia, serif', fontWeight: 300 }}>Direct Negotiations</h2>
+                </div>
+                <OfferInbox />
               </div>
             )}
 

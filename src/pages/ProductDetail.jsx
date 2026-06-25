@@ -14,8 +14,10 @@ import {
   Crown,
   Calendar,
   Send,
-  X
+  X,
+  Handshake
 } from 'lucide-react';
+import MakeOfferModal from '../components/MakeOfferModal';
 
 const API_BASE = 'http://localhost:2409/api';
 
@@ -35,6 +37,7 @@ export default function ProductDetail() {
   const [inquiryMessage, setInquiryMessage] = useState('');
   const [inquirySending, setInquirySending] = useState(false);
   const [inquirySuccess, setInquirySuccess] = useState(false);
+  const [offerModalOpen, setOfferModalOpen] = useState(false);
 
   // Fetch product detail
   useEffect(() => {
@@ -386,29 +389,40 @@ export default function ProductDetail() {
 
             {/* Action buttons */}
             <div className="space-y-3">
-              <button 
-                onClick={handleAddToCart}
-                disabled={product.stock <= 0}
-                className="w-full py-4 rounded-full text-white text-xs font-semibold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer hover:shadow-lg shadow-sm"
-                style={{ 
-                  background: product.stock > 0 
-                    ? 'linear-gradient(135deg, #A48374, #3A2D28)' 
-                    : 'rgb(203,173,141)',
-                  opacity: product.stock > 0 ? 1 : 0.6
-                }}
-              >
-                {addedToCart ? (
-                  <>
-                    <Check className="w-4 h-4 text-white" />
-                    Added to Collection
-                  </>
-                ) : (
-                  <>
-                    <ShoppingBag className="w-4 h-4" />
-                    {product.stock > 0 ? 'Secure Acquisition' : 'Sold Out'}
-                  </>
-                )}
-              </button>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button 
+                  onClick={handleAddToCart}
+                  disabled={product.stock <= 0}
+                  className="flex-1 py-4 rounded-full text-white text-xs font-semibold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer hover:shadow-lg shadow-sm"
+                  style={{ 
+                    background: product.stock > 0 
+                      ? 'linear-gradient(135deg, #A48374, #3A2D28)' 
+                      : 'rgb(203,173,141)',
+                    opacity: product.stock > 0 ? 1 : 0.6
+                  }}
+                >
+                  {addedToCart ? (
+                    <>
+                      <Check className="w-4 h-4 text-white" />
+                      Added to Collection
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingBag className="w-4 h-4" />
+                      {product.stock > 0 ? 'Secure Acquisition' : 'Sold Out'}
+                    </>
+                  )}
+                </button>
+
+                <button 
+                  onClick={() => setOfferModalOpen(true)}
+                  disabled={product.stock <= 0}
+                  className="flex-1 py-4 rounded-full text-[#A48374] text-xs font-semibold uppercase tracking-wider border border-[#A48374] bg-white transition-colors flex items-center justify-center gap-2 hover:bg-[#F7F3EF] cursor-pointer"
+                >
+                  <Handshake className="w-4 h-4" />
+                  Make an Offer
+                </button>
+              </div>
 
               <button 
                 onClick={() => setInquiryModalOpen(true)}
@@ -522,6 +536,13 @@ export default function ProductDetail() {
           </div>
         </div>
       )}
+
+      {/* Make Offer Modal */}
+      <MakeOfferModal
+        isOpen={offerModalOpen}
+        onClose={() => setOfferModalOpen(false)}
+        product={product}
+      />
 
     </div>
   );

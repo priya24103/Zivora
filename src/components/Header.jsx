@@ -381,6 +381,9 @@ export default function Header() {
             <Link to="/seller/dashboard?tab=rfqs" className={`hover:text-[#CBAD8D] transition-colors ${location.search.includes('tab=rfqs') ? 'text-[#3A2D28] font-bold border-b border-[#3A2D28]' : ''}`}>
               Buyer RFQs
             </Link>
+            <Link to="/seller/dashboard?tab=negotiations" className={`hover:text-[#CBAD8D] transition-colors ${location.search.includes('tab=negotiations') ? 'text-[#3A2D28] font-bold border-b border-[#3A2D28]' : ''}`}>
+              Negotiations
+            </Link>
             <Link to="/seller/dashboard?tab=messages" className={`hover:text-[#CBAD8D] transition-colors ${location.search.includes('tab=messages') ? 'text-[#3A2D28] font-bold border-b border-[#3A2D28]' : ''}`}>
               Messages
             </Link>

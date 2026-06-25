@@ -14,10 +14,12 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronUp,
-  ShoppingBag
+  ShoppingBag,
+  Handshake
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
+import OfferInbox from '../components/OfferInbox';
 
 export default function BuyerDashboard() {
   const navigate = useNavigate();
@@ -392,6 +394,20 @@ export default function BuyerDashboard() {
               )}
             </motion.div>
  
+            {/* Direct Negotiations Section */}
+            <motion.div 
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12 }}
+              className="bg-white rounded-3xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-[#CBAD8D]/10"
+            >
+              <div className="flex items-center gap-2 mb-6 border-b border-[#CBAD8D]/10 pb-4">
+                <Handshake className="w-5 h-5 text-[#A48374]" />
+                <h3 className="text-xl text-[#3A2D28]" style={{ fontFamily: 'Georgia, serif', fontWeight: 300 }}>Direct Negotiations</h3>
+              </div>
+              <OfferInbox />
+            </motion.div>
+
             {/* My Orders Section */}
             <motion.div 
               initial={{ opacity: 0, y: 15 }}
