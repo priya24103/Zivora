@@ -1,6 +1,7 @@
 const Cart = require('../models/Cart');
 const Order = require('../models/Order');
 const { Product } = require('../models/Product');
+const Auction = require('../models/Auction');
 
 // @desc    Checkout and create a new order from buyer's cart
 // @route   POST /api/orders/checkout
@@ -38,7 +39,7 @@ exports.checkout = async (req, res, next) => {
       });
     }
 
-    // 2. Verify all items are still in stock and available
+    // 2. Verify all items are still in stock and available (or are won auctions)
     for (const item of cart.items) {
       const product = item.productId;
       if (!product) {
@@ -48,11 +49,20 @@ exports.checkout = async (req, res, next) => {
         });
       }
 
-      if (product.status !== 'available' || product.stock < item.quantity) {
-        return res.status(400).json({
-          status: 'error',
-          message: `Product "${product.title}" is out of stock or no longer available in the requested quantity`
-        });
+      // Check if this is a won auction
+      const completedAuction = await Auction.findOne({
+        productId: product._id,
+        highestBidder: req.user._id,
+        status: 'completed'
+      });
+
+      if (!completedAuction) {
+        if (product.status !== 'available' || product.stock < item.quantity) {
+          return res.status(400).json({
+            status: 'error',
+            message: `Product "${product.title}" is out of stock or no longer available in the requested quantity`
+          });
+        }
       }
     }
 
@@ -69,14 +79,23 @@ exports.checkout = async (req, res, next) => {
         sellerIdsSet.add(product.sellerId.toString());
       }
 
+      // Check if this is a won auction to override price
+      const completedAuction = await Auction.findOne({
+        productId: product._id,
+        highestBidder: req.user._id,
+        status: 'completed'
+      });
+
+      const priceAtPurchase = completedAuction ? completedAuction.currentHighestBid : product.price;
+
       orderItems.push({
         productId: product._id,
         title: product.title,
-        priceAtPurchase: product.price,
+        priceAtPurchase,
         quantity: item.quantity
       });
 
-      totalAmount += product.price * item.quantity;
+      totalAmount += priceAtPurchase * item.quantity;
     }
 
     const sellerIds = Array.from(sellerIdsSet);
@@ -99,14 +118,17 @@ exports.checkout = async (req, res, next) => {
       totalAmount
     });
 
-    // 5. Update product stock and status
+    // 5. Update product stock and status safely
     for (const item of cart.items) {
       const product = item.productId;
-      product.stock -= item.quantity;
-      if (product.stock === 0) {
-        product.status = 'sold';
+      if (product.stock > 0) {
+        product.stock -= item.quantity;
+        if (product.stock <= 0) {
+          product.stock = 0;
+          product.status = 'sold';
+        }
+        await product.save();
       }
-      await product.save();
     }
 
     // 6. Clear user's Cart

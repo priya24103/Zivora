@@ -94,6 +94,11 @@ module.exports = (io) => {
           return;
         }
 
+        if (auction.highestBidder && auction.highestBidder.toString() === userId.toString()) {
+          socket.emit('error', { message: 'You are already the highest bidder. You cannot outbid yourself.' });
+          return;
+        }
+
         const minIncrement = auction.minIncrement || 100;
         const minRequired = auction.currentHighestBid + minIncrement;
         if (Number(amount) < minRequired) {

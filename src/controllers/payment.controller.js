@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const Cart = require('../models/Cart');
 const Order = require('../models/Order');
 const { Product } = require('../models/Product');
+const Auction = require('../models/Auction');
 
 // @desc    Create a new Razorpay order
 // @route   POST /api/payment/create-order
@@ -46,11 +47,22 @@ exports.createOrder = async (req, res, next) => {
     let totalAmount = 0;
     for (const item of cart.items) {
       const product = item.productId;
-      if (product.status !== 'available' || product.stock < item.quantity) {
-        return res.status(400).json({
-          status: 'error',
-          message: `Product "${product.title}" is out of stock or no longer available`
-        });
+      
+      const completedAuction = await Auction.findOne({
+        productId: product._id,
+        highestBidder: req.user._id,
+        status: 'completed'
+      });
+
+      if (completedAuction) {
+        product.price = completedAuction.currentHighestBid;
+      } else {
+        if (product.status !== 'available' || product.stock < item.quantity) {
+          return res.status(400).json({
+            status: 'error',
+            message: `Product "${product.title}" is out of stock or no longer available`
+          });
+        }
       }
       totalAmount += product.price * item.quantity;
     }
@@ -186,14 +198,23 @@ exports.verifyPayment = async (req, res, next) => {
         sellerIdsSet.add(product.sellerId.toString());
       }
 
+      // Check if won auction to override price
+      const completedAuction = await Auction.findOne({
+        productId: product._id,
+        highestBidder: req.user._id,
+        status: 'completed'
+      });
+
+      const priceAtPurchase = completedAuction ? completedAuction.currentHighestBid : product.price;
+
       orderItems.push({
         productId: product._id,
         title: product.title,
-        priceAtPurchase: product.price,
+        priceAtPurchase,
         quantity: item.quantity
       });
 
-      totalAmount += product.price * item.quantity;
+      totalAmount += priceAtPurchase * item.quantity;
     }
 
     const sellerIds = Array.from(sellerIdsSet);
@@ -219,14 +240,17 @@ exports.verifyPayment = async (req, res, next) => {
       razorpaySignature: razorpay_signature
     });
 
-    // Update product stock and status
+    // Update product stock and status safely
     for (const item of cart.items) {
       const product = item.productId;
-      product.stock -= item.quantity;
-      if (product.stock === 0) {
-        product.status = 'sold';
+      if (product.stock > 0) {
+        product.stock -= item.quantity;
+        if (product.stock <= 0) {
+          product.stock = 0;
+          product.status = 'sold';
+        }
+        await product.save();
       }
-      await product.save();
     }
 
     // Clear user's Cart

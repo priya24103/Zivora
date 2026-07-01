@@ -1,5 +1,6 @@
 const Cart = require('../models/Cart');
 const { Product } = require('../models/Product');
+const Auction = require('../models/Auction');
 
 // @desc    Fetch the logged-in buyer's cart
 // @route   GET /api/cart
@@ -27,10 +28,21 @@ exports.getCart = async (req, res, next) => {
     // Filter out items where the product no longer exists
     cart.items = cart.items.filter(item => item.productId != null);
 
-    // Calculate dynamic total on the fly
-    const cartTotal = cart.items.reduce((total, item) => {
-      return total + (item.productId.price * item.quantity);
-    }, 0);
+    // Calculate dynamic total on the fly, overriding prices for won auctions
+    let cartTotal = 0;
+    for (const item of cart.items) {
+      const product = item.productId;
+      const completedAuction = await Auction.findOne({
+        productId: product._id,
+        highestBidder: req.user._id,
+        status: 'completed'
+      });
+
+      if (completedAuction) {
+        product.price = completedAuction.currentHighestBid;
+      }
+      cartTotal += product.price * item.quantity;
+    }
 
     res.status(200).json({
       status: 'success',

@@ -22,11 +22,13 @@ const registerAuctionSocket = require('./socket/auctionSocket');
 registerAuctionSocket(io);
 
 const rfqCron = require('./jobs/rfqCron');
+const auctionExpiry = require('./jobs/auctionExpiry');
 
 const startServer = async () => {
   try {
     await connectDB();
     rfqCron.init();
+    auctionExpiry.init();
     server.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });
