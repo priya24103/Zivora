@@ -14,7 +14,8 @@ import {
   Gem, 
   Award,
   ChevronLeft,
-  Users
+  Users,
+  Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -40,6 +41,9 @@ export default function Auctions() {
   
   // Countdown/Time Watcher State
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isExpired, setIsExpired] = useState(false);
+  const [liveCountdown, setLiveCountdown] = useState('00:00:00');
+  const [liveRoomHighestBidder, setLiveRoomHighestBidder] = useState(null);
 
   // Socket/Bidding Simulation States in Live Room
   const [liveRoomHighestBid, setLiveRoomHighestBid] = useState(0);
@@ -101,6 +105,7 @@ export default function Auctions() {
       if (data.auctionId.toString() === selectedAuction._id.toString()) {
         setLiveRoomHighestBid(data.amount);
         setLiveRoomBids(data.bids || []);
+        setLiveRoomHighestBidder(data.bidderId);
         
         // Auto-update input to next valid bid amount
         const minInc = selectedAuction.minIncrement || 100;
@@ -216,6 +221,11 @@ export default function Auctions() {
     e.preventDefault();
     if (isCooldown) return;
 
+    if (liveRoomHighestBidder && liveRoomHighestBidder.toString() === user._id?.toString()) {
+      alert('You are already the highest bidder. You cannot outbid yourself.');
+      return;
+    }
+
     const bidVal = Number(userBidAmount);
     const minInc = selectedAuction.minIncrement || 100;
     const requiredMin = liveRoomHighestBid + minInc;
@@ -251,10 +261,45 @@ export default function Auctions() {
     return () => clearInterval(timer);
   }, [isCooldown, cooldownRemaining]);
 
+  // Live Room countdown timer watcher
+  useEffect(() => {
+    if (!selectedAuction || !selectedAuction.endTime) return;
+
+    const calculateTimeLeft = () => {
+      const difference = new Date(selectedAuction.endTime) - new Date();
+      if (difference <= 0) {
+        setIsExpired(true);
+        setLiveCountdown('00:00:00');
+        return false;
+      }
+
+      const hrs = String(Math.floor(difference / (1000 * 60 * 60))).padStart(2, '0');
+      const mins = String(Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60))).padStart(2, '0');
+      const secs = String(Math.floor((difference % (1000 * 60)) / 1000)).padStart(2, '0');
+      
+      setLiveCountdown(`${hrs}:${mins}:${secs}`);
+      return true;
+    };
+
+    const active = calculateTimeLeft();
+    if (!active) return;
+
+    const timer = setInterval(() => {
+      const keepGoing = calculateTimeLeft();
+      if (!keepGoing) {
+        clearInterval(timer);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [selectedAuction]);
+
   // Load live room states when an auction is selected
   const enterLiveRoom = (auction) => {
     setSelectedAuction(auction);
     setLiveRoomHighestBid(auction.currentHighestBid || auction.startPrice);
+    setLiveRoomHighestBidder(auction.highestBidder);
+    setIsExpired(new Date(auction.endTime) <= new Date());
     
     // Sort and set bids chronological
     const sortedBids = auction.bids 
@@ -593,13 +638,19 @@ export default function Auctions() {
                     <div>
                       <p className="text-[9px] uppercase tracking-wider text-[#A48374] font-semibold">Time Remaining</p>
                       <p className="text-lg font-bold font-mono text-[#3A2D28] mt-0.5">
-                        {formatCountdown(selectedAuction.endTime)}
+                        {liveCountdown}
                       </p>
                     </div>
                   </div>
-                  <span className="text-[9px] bg-green-50 border border-green-200 text-green-700 font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-                    Bidding Open
-                  </span>
+                  {isExpired ? (
+                    <span className="text-[9px] bg-red-50 border border-red-200 text-red-700 font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                      Bidding Closed
+                    </span>
+                  ) : (
+                    <span className="text-[9px] bg-green-50 border border-green-200 text-green-700 font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                      Bidding Open
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -667,7 +718,7 @@ export default function Auctions() {
                   
                   {/* Cooldown Overlay */}
                   <AnimatePresence>
-                    {isCooldown && (
+                    {isCooldown && !isExpired && (
                       <motion.div 
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -693,54 +744,101 @@ export default function Auctions() {
                     )}
                   </AnimatePresence>
 
-                  <form onSubmit={handlePlaceBid} className="space-y-4">
-                    <div>
-                      <label htmlFor="bid-amount" className="block text-[10px] uppercase tracking-wider text-[#A48374] font-semibold mb-2">
-                        Enter Custom Bid Amount (₹)
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-[#A48374] font-mono text-sm">
-                          ₹
-                        </div>
-                        <input 
-                          id="bid-amount"
-                          type="number" 
-                          required
-                          disabled={isCooldown}
-                          value={userBidAmount}
-                          onChange={(e) => setUserBidAmount(e.target.value)}
-                          placeholder={(liveRoomHighestBid + (selectedAuction.minIncrement || 100)).toString()}
-                          className="w-full pl-8 pr-4 py-3.5 border border-[#CBAD8D]/30 focus:border-[#A48374] focus:outline-none rounded-xl text-sm bg-[#FAF8F6] text-[#3A2D28] font-mono font-bold"
-                        />
+                  {isExpired ? (
+                    <div className="space-y-4 animate-fade-in">
+                      {/* Bidding Closed Banner */}
+                      <div className="flex items-center justify-center gap-2 bg-[#3A2D28]/10 text-[#3A2D28] border border-[#3A2D28]/20 py-3.5 px-4 rounded-xl text-center">
+                        <Lock className="w-4 h-4 text-[#A48374]" />
+                        <span className="text-xs uppercase font-extrabold tracking-widest">Bidding Closed</span>
                       </div>
-                    </div>
 
-                    {/* Pre-set Bid Quick Actions */}
-                    <div className="grid grid-cols-3 gap-2">
-                      {[1000, 5000, 10000].map((inc) => {
-                        const targetVal = liveRoomHighestBid + (selectedAuction.minIncrement || 100) + inc;
-                        return (
-                          <button
-                            key={inc}
-                            type="button"
-                            disabled={isCooldown}
-                            onClick={() => setUserBidAmount(targetVal.toString())}
-                            className="py-2.5 px-3 border border-[#CBAD8D]/15 hover:border-[#A48374] rounded-lg text-[10px] text-[#A48374] hover:text-[#3A2D28] bg-[#FAF8F6]/30 transition-all font-semibold font-mono"
-                          >
-                            +{inc / 1000}k (₹{(inc / 1000).toLocaleString()}k)
-                          </button>
-                        );
-                      })}
+                      {/* Winner State Rendering */}
+                      {liveRoomHighestBidder ? (
+                        liveRoomHighestBidder.toString() === user._id?.toString() ? (
+                          <div className="bg-[#FAF8F6] border border-[#A48374] rounded-xl p-5 text-center space-y-4 shadow-xs">
+                            <Award className="w-10 h-10 text-[#A48374] mx-auto animate-bounce" />
+                            <div>
+                              <h4 className="text-sm font-bold text-[#3A2D28] uppercase tracking-wider">Congratulations!</h4>
+                              <p className="text-xs text-[#A48374] mt-1">
+                                You won this diamond at <strong className="text-[#3A2D28]">₹{liveRoomHighestBid.toLocaleString('en-IN')}</strong>.
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => navigate('/checkout')}
+                              className="w-full py-3.5 bg-[#A48374] hover:bg-[#3A2D28] text-white text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all cursor-pointer shadow-xs"
+                            >
+                              Proceed to Checkout
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="bg-[#FAF8F6] border border-[#CBAD8D]/20 rounded-xl p-5 text-center space-y-2">
+                            <CheckCircle className="w-8 h-8 text-[#A48374] mx-auto opacity-75" />
+                            <h4 className="text-xs font-semibold text-[#3A2D28] uppercase tracking-wide">Auction Ended</h4>
+                            <p className="text-xs text-[#A48374]">This item has been sold.</p>
+                          </div>
+                        )
+                      ) : (
+                        <div className="bg-[#FAF8F6] border border-[#CBAD8D]/20 rounded-xl p-5 text-center space-y-2">
+                          <Gavel className="w-8 h-8 text-[#A48374] mx-auto opacity-45" />
+                          <h4 className="text-xs font-semibold text-[#3A2D28] uppercase tracking-wide">Auction Ended</h4>
+                          <p className="text-xs text-[#A48374]">No bids were placed.</p>
+                        </div>
+                      )}
                     </div>
+                  ) : (
+                    <form onSubmit={handlePlaceBid} className="space-y-4">
+                      <div>
+                        <label htmlFor="bid-amount" className="block text-[10px] uppercase tracking-wider text-[#A48374] font-semibold mb-2">
+                          Enter Custom Bid Amount (₹)
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-[#A48374] font-mono text-sm">
+                            ₹
+                          </div>
+                          <input 
+                            id="bid-amount"
+                            type="number" 
+                            required
+                            disabled={isCooldown || (liveRoomHighestBidder && liveRoomHighestBidder.toString() === user._id?.toString())}
+                            value={userBidAmount}
+                            onChange={(e) => setUserBidAmount(e.target.value)}
+                            placeholder={(liveRoomHighestBid + (selectedAuction.minIncrement || 100)).toString()}
+                            className="w-full pl-8 pr-4 py-3.5 border border-[#CBAD8D]/30 focus:border-[#A48374] focus:outline-none rounded-xl text-sm bg-[#FAF8F6] text-[#3A2D28] font-mono font-bold"
+                          />
+                        </div>
+                      </div>
 
-                    <button
-                      type="submit"
-                      disabled={isCooldown}
-                      className="w-full py-4 bg-[#3A2D28] hover:bg-[#A48374] text-white text-xs font-bold uppercase tracking-widest rounded-xl transition-all cursor-pointer shadow-sm disabled:opacity-50 text-center"
-                    >
-                      {isCooldown ? `Evaluating bid... ${cooldownRemaining}s` : 'Submit Irrevocable Bid ⚡'}
-                    </button>
-                  </form>
+                      {/* Pre-set Bid Quick Actions */}
+                      <div className="grid grid-cols-3 gap-2">
+                        {[1000, 5000, 10000].map((inc) => {
+                          const targetVal = liveRoomHighestBid + (selectedAuction.minIncrement || 100) + inc;
+                          return (
+                            <button
+                              key={inc}
+                              type="button"
+                              disabled={isCooldown || (liveRoomHighestBidder && liveRoomHighestBidder.toString() === user._id?.toString())}
+                              onClick={() => setUserBidAmount(targetVal.toString())}
+                              className="py-2.5 px-3 border border-[#CBAD8D]/15 hover:border-[#A48374] rounded-lg text-[10px] text-[#A48374] hover:text-[#3A2D28] bg-[#FAF8F6]/30 transition-all font-semibold font-mono"
+                            >
+                              +{inc / 1000}k (₹{(inc / 1000).toLocaleString()}k)
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={isCooldown || (liveRoomHighestBidder && liveRoomHighestBidder.toString() === user._id?.toString())}
+                        className="w-full py-4 bg-[#3A2D28] hover:bg-[#A48374] text-white text-xs font-bold uppercase tracking-widest rounded-xl transition-all cursor-pointer shadow-sm disabled:opacity-50 text-center"
+                      >
+                        {isCooldown 
+                          ? `Evaluating bid... ${cooldownRemaining}s` 
+                          : (liveRoomHighestBidder && liveRoomHighestBidder.toString() === user._id?.toString()) 
+                            ? 'You are the highest bidder ★' 
+                            : 'Submit Irrevocable Bid ⚡'}
+                      </button>
+                    </form>
+                  )}
                 </div>
               </div>
 
