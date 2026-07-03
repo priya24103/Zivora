@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { 
-  ArrowLeft, 
-  Sparkles, 
-  ShoppingBag, 
-  MessageSquare, 
-  Check, 
-  ShieldCheck, 
-  Truck, 
+import {
+  ArrowLeft,
+  Sparkles,
+  ShoppingBag,
+  MessageSquare,
+  Check,
+  ShieldCheck,
+  Truck,
   Award,
   Diamond as DiamondIcon,
   Crown,
@@ -27,14 +27,13 @@ export default function ProductDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeImage, setActiveImage] = useState('');
-  
+
   const [addedToCart, setAddedToCart] = useState(false);
   const [inquiryModalOpen, setInquiryModalOpen] = useState(false);
   const [inquiryMessage, setInquiryMessage] = useState('');
   const [inquirySending, setInquirySending] = useState(false);
   const [inquirySuccess, setInquirySuccess] = useState(false);
 
-  // Fetch product detail (assuming REST API runs on backend url)
   useEffect(() => {
     const loadProductDetail = async () => {
       if (!id) return;
@@ -43,7 +42,7 @@ export default function ProductDetailPage() {
       try {
         const res = await fetch(`http://localhost:2409/api/products/${id}`);
         const resultData = await res.json();
-        
+
         if (resultData.status === 'success') {
           setProduct(resultData.data.product);
           if (resultData.data.product?.images?.length > 0) {
@@ -149,7 +148,7 @@ export default function ProductDetailPage() {
 
   return (
     <div className="min-h-screen py-12 px-4 md:px-8 lg:px-16 bg-[#F1EDE6] text-[#3A2D28]">
-      
+
       {/* Back button */}
       <div className="max-w-6xl mx-auto mb-6">
         <button onClick={() => router.back()} className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#A48374] hover:text-[#3A2D28] transition-colors cursor-pointer">
@@ -160,7 +159,7 @@ export default function ProductDetailPage() {
 
       <div className="max-w-6xl mx-auto bg-white rounded-[32px] border border-[#E6DFD6] p-6 md:p-12 shadow-sm">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          
+
           {/* IMAGE GALLERY */}
           <div className="space-y-6">
             <div className="relative aspect-square rounded-[24px] overflow-hidden bg-[#F7F3EF] border border-[#EBE3DB] flex items-center justify-center">
@@ -212,7 +211,7 @@ export default function ProductDetailPage() {
                 <span>•</span>
                 <span>ID: {product._id.substring(18).toUpperCase()}</span>
               </div>
-              
+
               <h1 className="text-3xl font-serif leading-tight mb-3">{product.title}</h1>
 
               {/* Seller reference */}
@@ -281,14 +280,14 @@ export default function ProductDetailPage() {
 
             {/* Actions */}
             <div className="space-y-3">
-              <button 
+              <button
                 onClick={handleAddToCart}
                 className="w-full py-4 rounded-full text-white text-xs font-semibold uppercase tracking-wider bg-gradient-to-r from-[#A48374] to-[#3A2D28]"
               >
                 {addedToCart ? 'Added to Cart' : 'Add to Cart'}
               </button>
 
-              <button 
+              <button
                 onClick={() => setInquiryModalOpen(true)}
                 className="w-full py-4 rounded-full text-[#3A2D28] text-xs font-semibold uppercase tracking-wider border border-[#E6DFD6] bg-white hover:bg-[#F7F3EF]"
               >

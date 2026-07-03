@@ -152,6 +152,24 @@ export default function BuyerDashboard() {
     }
   };
 
+  const handleCancelOrder = async (orderId) => {
+    if (!window.confirm('Are you sure you want to cancel this order and restore the items to your cart?')) return;
+    try {
+      const token = localStorage.getItem('zivora_token');
+      const response = await axios.post(`http://localhost:2409/api/orders/${orderId}/cancel`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.status === 'success') {
+        alert('Order cancelled and items restored to cart successfully.');
+        fetchDashboardData();
+        window.dispatchEvent(new Event('storage'));
+      }
+    } catch (err) {
+      console.error('Error cancelling order:', err);
+      alert(err.response?.data?.message || 'Could not cancel order');
+    }
+  };
+
   return (
     <div className="min-h-screen py-12 px-6 lg:px-16" style={{ backgroundColor: '#F7F3EF' }}>
       <div className="max-w-7xl mx-auto">
@@ -457,8 +475,8 @@ export default function BuyerDashboard() {
                           <span 
                             className="px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider"
                             style={{ 
-                              backgroundColor: order.paymentStatus === 'paid' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)',
-                              color: order.paymentStatus === 'paid' ? '#10B981' : '#F59E0B'
+                              backgroundColor: order.orderStatus === 'cancelled' ? 'rgba(239,68,68,0.1)' : order.paymentStatus === 'paid' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)',
+                              color: order.orderStatus === 'cancelled' ? '#EF4444' : order.paymentStatus === 'paid' ? '#10B981' : '#F59E0B'
                             }}
                           >
                             Payment: {order.paymentStatus}
@@ -466,8 +484,8 @@ export default function BuyerDashboard() {
                           <span 
                             className="px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider"
                             style={{ 
-                              backgroundColor: order.orderStatus === 'delivered' ? 'rgba(16,185,129,0.1)' : 'rgba(164,131,116,0.15)',
-                              color: order.orderStatus === 'delivered' ? '#10B981' : '#A48374'
+                              backgroundColor: order.orderStatus === 'delivered' ? 'rgba(16,185,129,0.1)' : order.orderStatus === 'cancelled' ? 'rgba(239,68,68,0.1)' : 'rgba(164,131,116,0.15)',
+                              color: order.orderStatus === 'delivered' ? '#10B981' : order.orderStatus === 'cancelled' ? '#EF4444' : '#A48374'
                             }}
                           >
                             Status: {order.orderStatus}
@@ -475,6 +493,23 @@ export default function BuyerDashboard() {
                         </div>
                         <span className="text-[10px] text-[#A48374] font-medium">Deliver to: {order.shippingAddress?.fullName}</span>
                       </div>
+
+                      {order.paymentStatus === 'pending' && order.orderStatus !== 'cancelled' && (
+                        <div className="flex gap-3 justify-end mt-4 pt-3 border-t border-[#CBAD8D]/5">
+                          <button
+                            onClick={() => handleCancelOrder(order._id)}
+                            className="px-4 py-2 border border-red-200 hover:bg-red-50 text-red-500 rounded-full text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors"
+                          >
+                            Cancel Order
+                          </button>
+                          <button
+                            onClick={() => navigate(`/checkout/${order._id}`)}
+                            className="px-5 py-2 bg-[#3A2D28] text-white hover:bg-[#A48374] rounded-full text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors"
+                          >
+                            Pay Now
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

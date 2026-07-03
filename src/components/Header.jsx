@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import { useCart } from '../context/CartContext';
 import { 
   Search, 
   Heart, 
@@ -21,36 +22,7 @@ export default function Header() {
   
   const [user, setUser] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [cartCount, setCartCount] = useState(0);
-
-  const fetchCartCount = async () => {
-    try {
-      const token = localStorage.getItem('zivora_token');
-      if (!token) {
-        setCartCount(0);
-        return;
-      }
-      const response = await axios.get('http://localhost:2409/api/cart', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.data.status === 'success' && response.data.data.cart) {
-        const items = response.data.data.cart.items || [];
-        const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-        setCartCount(totalItems);
-      } else {
-        setCartCount(0);
-      }
-    } catch (err) {
-      console.error('Error fetching cart count:', err);
-      setCartCount(0);
-    }
-  };
-
-  useEffect(() => {
-    fetchCartCount();
-    window.addEventListener('storage', fetchCartCount);
-    return () => window.removeEventListener('storage', fetchCartCount);
-  }, [location.pathname, user]);
+  const { cartCount, setIsCartOpen } = useCart();
   
   const handleSearchSubmit = (e) => {
     e.preventDefault();

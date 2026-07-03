@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { ShieldCheck, Sparkles, CreditCard, Lock, ArrowLeft } from 'lucide-react';
 
@@ -18,6 +18,7 @@ const loadScript = (src) => {
 
 export default function Checkout() {
   const navigate = useNavigate();
+  const { orderId } = useParams();
   
   // Cart & Loading states
   const [cart, setCart] = useState(null);
@@ -43,20 +44,46 @@ export default function Checkout() {
         return;
       }
 
-      const response = await axios.get(`${API_BASE}/cart`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      if (orderId) {
+        // Fetch existing pending Order
+        const response = await axios.get(`${API_BASE}/orders/${orderId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
 
-      if (response.data.status === 'success') {
-        const cartData = response.data.data.cart;
-        setCart(cartData);
-        if (!cartData.items || cartData.items.length === 0) {
-          navigate('/cart'); // redirect if cart empty
+        if (response.data.status === 'success') {
+          const order = response.data.data.order;
+          
+          if (order.paymentStatus === 'paid') {
+            navigate('/order/success', { state: { orderId: order._id } });
+            return;
+          }
+
+          setCart({
+            items: (order.items || []).map(item => ({
+              _id: item._id,
+              productId: item.productId,
+              quantity: item.quantity
+            })),
+            cartTotal: order.totalAmount
+          });
+        }
+      } else {
+        // Fetch active Cart
+        const response = await axios.get(`${API_BASE}/cart`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (response.data.status === 'success') {
+          const cartData = response.data.data.cart;
+          setCart(cartData);
+          if (!cartData.items || cartData.items.length === 0) {
+            navigate('/cart'); // redirect if cart empty
+          }
         }
       }
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.message || 'Error fetching cart details');
+      setError(err.response?.data?.message || 'Error fetching checkout details');
     } finally {
       setLoading(false);
     }
@@ -71,7 +98,7 @@ export default function Checkout() {
     };
     loadRazorpaySDK();
     fetchCart();
-  }, []);
+  }, [orderId]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -104,7 +131,7 @@ export default function Checkout() {
       // Step 1: Make a POST request to generate the Razorpay Order ID.
       const orderResponse = await axios.post(
         `${API_BASE}/payment/create-order`,
-        {},
+        orderId ? { orderId } : {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -139,7 +166,8 @@ export default function Checkout() {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
-                shippingAddress
+                shippingAddress,
+                ...(orderId ? { orderId } : {})
               },
               { headers: { Authorization: `Bearer ${token}` } }
             );
