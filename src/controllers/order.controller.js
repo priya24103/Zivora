@@ -194,3 +194,106 @@ exports.getSellerOrders = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Get order details by order ID
+// @route   GET /api/orders/:orderId
+// @access  Private
+exports.getOrderById = async (req, res, next) => {
+  try {
+    const order = await Order.findById(req.params.orderId)
+      .populate('items.productId');
+
+    if (!order) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Order not found'
+      });
+    }
+
+    // Ensure the user is authorized (either buyer or one of the sellers)
+    const isBuyer = order.buyerId.toString() === req.user._id.toString();
+    const isSeller = order.sellerIds.some(id => id.toString() === req.user._id.toString());
+
+    if (!isBuyer && !isSeller) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'You are not authorized to view this order'
+      });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        order
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Cancel a pending order and restore items to user's cart
+// @route   POST /api/orders/:orderId/cancel
+// @access  Private
+exports.cancelOrder = async (req, res, next) => {
+  try {
+    const order = await Order.findById(req.params.orderId);
+
+    if (!order) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Order not found'
+      });
+    }
+
+    // Ensure only the buyer can cancel their pending order
+    if (order.buyerId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'You are not authorized to cancel this order'
+      });
+    }
+
+    if (order.paymentStatus !== 'pending') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Only pending orders can be cancelled'
+      });
+    }
+
+    // Update order status to cancelled
+    order.orderStatus = 'cancelled';
+    order.paymentStatus = 'failed';
+    await order.save();
+
+    // Restore items to user's Cart
+    let cart = await Cart.findOne({ buyerId: req.user._id });
+    if (!cart) {
+      cart = new Cart({ buyerId: req.user._id, items: [] });
+    }
+
+    for (const item of order.items) {
+      const itemIndex = cart.items.findIndex(
+        cItem => cItem.productId.toString() === item.productId.toString()
+      );
+      if (itemIndex > -1) {
+        cart.items[itemIndex].quantity += item.quantity;
+      } else {
+        cart.items.push({
+          productId: item.productId,
+          quantity: item.quantity,
+          priceAtAdd: item.priceAtPurchase
+        });
+      }
+    }
+
+    await cart.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Order cancelled successfully and items restored to cart'
+    });
+  } catch (error) {
+    next(error);
+  }
+};

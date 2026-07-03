@@ -6,6 +6,10 @@ const cartItemSchema = new mongoose.Schema({
     ref: 'Product',
     required: [true, 'Product ID is required']
   },
+  priceAtAdd: {
+    type: Number,
+    required: false
+  },
   quantity: {
     type: Number,
     required: [true, 'Quantity is required'],
@@ -19,7 +23,8 @@ const cartSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: [true, 'Cart must belong to a buyer'],
-    unique: true // A buyer has exactly one active cart
+    unique: true, // A buyer has exactly one active cart
+    alias: 'userId'
   },
   items: [cartItemSchema]
 }, {

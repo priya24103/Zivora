@@ -20,51 +20,91 @@ exports.createOrder = async (req, res, next) => {
       });
     }
 
-    // 1. Fetch the user's cart populated with current product details
-    const cart = await Cart.findOne({ buyerId: req.user._id }).populate({
-      path: 'items.productId',
-      select: 'title price stock status'
-    });
-
-    if (!cart || cart.items.length === 0) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Your cart is empty'
-      });
-    }
-
-    // Filter out items where the product no longer exists
-    cart.items = cart.items.filter(item => item.productId != null);
-
-    if (cart.items.length === 0) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Your cart has no valid products'
-      });
-    }
-
-    // 2. Calculate the exact total amount on the backend
     let totalAmount = 0;
-    for (const item of cart.items) {
-      const product = item.productId;
-      
-      const completedAuction = await Auction.findOne({
-        productId: product._id,
-        highestBidder: req.user._id,
-        status: 'completed'
-      });
+    const { orderId } = req.body;
 
-      if (completedAuction) {
-        product.price = completedAuction.currentHighestBid;
-      } else {
-        if (product.status !== 'available' || product.stock < item.quantity) {
+    if (orderId) {
+      // 1. Fetch the existing pending order
+      const order = await Order.findById(orderId);
+      if (!order) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Order not found'
+        });
+      }
+
+      if (order.buyerId.toString() !== req.user._id.toString()) {
+        return res.status(403).json({
+          status: 'error',
+          message: 'You are not authorized to pay for this order'
+        });
+      }
+
+      if (order.paymentStatus !== 'pending') {
+        return res.status(400).json({
+          status: 'error',
+          message: 'This order has already been processed or paid'
+        });
+      }
+
+      // Loop through items in order and verify availability
+      for (const item of order.items) {
+        const product = await Product.findById(item.productId);
+        if (!product || product.status !== 'available' || product.stock < item.quantity) {
           return res.status(400).json({
             status: 'error',
-            message: `Product "${product.title}" is out of stock or no longer available`
+            message: `Product "${item.title}" is out of stock or no longer available`
           });
         }
       }
-      totalAmount += product.price * item.quantity;
+
+      totalAmount = order.totalAmount;
+    } else {
+      // 1. Fetch the user's cart populated with current product details
+      const cart = await Cart.findOne({ buyerId: req.user._id }).populate({
+        path: 'items.productId',
+        select: 'title price stock status'
+      });
+
+      if (!cart || cart.items.length === 0) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Your cart is empty'
+        });
+      }
+
+      // Filter out items where the product no longer exists
+      cart.items = cart.items.filter(item => item.productId != null);
+
+      if (cart.items.length === 0) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Your cart has no valid products'
+        });
+      }
+
+      // 2. Calculate the exact total amount on the backend
+      for (const item of cart.items) {
+        const product = item.productId;
+        
+        const completedAuction = await Auction.findOne({
+          productId: product._id,
+          highestBidder: req.user._id,
+          status: 'completed'
+        });
+
+        if (completedAuction) {
+          product.price = completedAuction.currentHighestBid;
+        } else {
+          if (product.status !== 'available' || product.stock < item.quantity) {
+            return res.status(400).json({
+              status: 'error',
+              message: `Product "${product.title}" is out of stock or no longer available`
+            });
+          }
+        }
+        totalAmount += product.price * item.quantity;
+      }
     }
 
     // Convert amount to paise (INR's smallest currency unit)
@@ -152,6 +192,86 @@ exports.verifyPayment = async (req, res, next) => {
       return res.status(400).json({
         status: 'error',
         message: 'Payment verification failed'
+      });
+    }
+
+    if (orderId) {
+      // Find the existing pending order
+      const order = await Order.findById(orderId);
+      if (!order) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Order not found'
+        });
+      }
+
+      if (order.buyerId.toString() !== req.user._id.toString()) {
+        return res.status(403).json({
+          status: 'error',
+          message: 'You are not authorized to access this order'
+        });
+      }
+
+      // Verify all items are still in stock and available
+      for (const item of order.items) {
+        const product = await Product.findById(item.productId);
+        if (!product) {
+          return res.status(400).json({
+            status: 'error',
+            message: `Product "${item.title}" is no longer available`
+          });
+        }
+
+        if (product.status !== 'available' || product.stock < item.quantity) {
+          return res.status(400).json({
+            status: 'error',
+            message: `Product "${product.title}" is out of stock or no longer available`
+          });
+        }
+      }
+
+      // Update product stock and status safely
+      for (const item of order.items) {
+        const product = await Product.findById(item.productId);
+        if (product.stock > 0) {
+          product.stock -= item.quantity;
+          if (product.stock <= 0) {
+            product.stock = 0;
+            product.status = 'sold';
+          }
+          await product.save();
+        }
+      }
+
+      // Update order details and mark as paid
+      order.shippingAddress = {
+        fullName,
+        streetAddress,
+        city,
+        state,
+        zipCode,
+        phoneNumber
+      };
+      order.paymentStatus = 'paid';
+      order.razorpayOrderId = razorpay_order_id;
+      order.razorpayPaymentId = razorpay_payment_id;
+      order.razorpaySignature = razorpay_signature;
+
+      await order.save();
+
+      // Clear user's Cart
+      const cart = await Cart.findOne({ buyerId: req.user._id });
+      if (cart) {
+        cart.items = [];
+        await cart.save();
+      }
+
+      return res.status(200).json({
+        status: 'success',
+        message: 'Payment verified and order finalized successfully',
+        data: {
+          orderId: order._id
+        }
       });
     }
 

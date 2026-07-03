@@ -1,6 +1,7 @@
 const Cart = require('../models/Cart');
 const { Product } = require('../models/Product');
 const Auction = require('../models/Auction');
+const Order = require('../models/Order');
 
 // @desc    Fetch the logged-in buyer's cart
 // @route   GET /api/cart
@@ -83,6 +84,13 @@ exports.addToCart = async (req, res, next) => {
       });
     }
 
+    if (product.listingType !== 'direct_sale') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Only direct sale products can be added to the cart'
+      });
+    }
+
     if (product.status !== 'available' || product.stock <= 0) {
       return res.status(400).json({
         status: 'error',
@@ -109,6 +117,7 @@ exports.addToCart = async (req, res, next) => {
         });
       }
       cart.items[itemIndex].quantity = newQty;
+      cart.items[itemIndex].priceAtAdd = product.price;
     } else {
       if (qtyToAdd > product.stock) {
         return res.status(400).json({
@@ -116,7 +125,7 @@ exports.addToCart = async (req, res, next) => {
           message: `Cannot add. Only ${product.stock} items are in stock.`
         });
       }
-      cart.items.push({ productId, quantity: qtyToAdd });
+      cart.items.push({ productId, priceAtAdd: product.price, quantity: qtyToAdd });
     }
 
     await cart.save();
@@ -188,6 +197,97 @@ exports.removeFromCart = async (req, res, next) => {
           items: updatedCart.items,
           cartTotal
         }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Checkout the cart and create a pending order
+// @route   POST /api/cart/checkout
+// @access  Private
+exports.checkout = async (req, res, next) => {
+  try {
+    // 1. Fetch user's cart populated with current product details
+    const cart = await Cart.findOne({ buyerId: req.user._id }).populate({
+      path: 'items.productId',
+      select: 'title price stock status sellerId'
+    });
+
+    if (!cart || cart.items.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Your cart is empty'
+      });
+    }
+
+    // 2. Verify all items are still status: 'available' and in stock
+    const orderItems = [];
+    const sellerIdsSet = new Set();
+    let totalAmount = 0;
+
+    for (const item of cart.items) {
+      const product = item.productId;
+      if (!product) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'One of the items in your cart is no longer available'
+        });
+      }
+
+      if (product.status !== 'available' || product.stock < item.quantity) {
+        return res.status(400).json({
+          status: 'error',
+          message: `Product "${product.title}" is out of stock or no longer available`
+        });
+      }
+
+      if (product.sellerId) {
+        sellerIdsSet.add(product.sellerId.toString());
+      }
+
+      orderItems.push({
+        productId: product._id,
+        title: product.title,
+        priceAtPurchase: product.price,
+        quantity: item.quantity
+      });
+
+      totalAmount += product.price * item.quantity;
+    }
+
+    // 3. Generate placeholder shipping address since user will finalize it on checkout page
+    const shippingAddress = {
+      fullName: req.user.name || 'Valued Client',
+      streetAddress: 'Pending Address Confirmation',
+      city: 'Pending Checkout',
+      state: 'Pending Checkout',
+      zipCode: '000000',
+      phoneNumber: req.user.phone || '0000000000'
+    };
+
+    // 4. Create the new pending Order document (spanning all items)
+    const order = await Order.create({
+      buyerId: req.user._id,
+      sellerIds: Array.from(sellerIdsSet),
+      items: orderItems,
+      shippingAddress,
+      paymentStatus: 'pending',
+      orderStatus: 'processing',
+      totalAmount
+    });
+
+    // 5. Clear the user's Cart document entirely
+    cart.items = [];
+    await cart.save();
+
+    // 6. Return orderId
+    res.status(200).json({
+      status: 'success',
+      message: 'Checkout initialized successfully',
+      data: {
+        orderId: order._id
       }
     });
   } catch (error) {

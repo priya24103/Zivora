@@ -14,7 +14,6 @@ class MinHeap {
     [this.heap[i1], this.heap[i2]] = [this.heap[i2], this.heap[i1]];
   }
 
-  // Comparison logic: lowest price wins; oldest submission time breaks tie
   compare(item1, item2) {
     if (item1.quotePrice !== item2.quotePrice) {
       return item1.quotePrice < item2.quotePrice;
