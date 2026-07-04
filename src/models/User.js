@@ -50,6 +50,16 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  status: {
+    type: String,
+    enum: ['active', 'suspended', 'pending_kyc'],
+    default: 'active'
+  },
+  company: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   sellerProfile: {
     type: sellerProfileSchema,
     // Makes the profile mandatory only if the user is a seller
