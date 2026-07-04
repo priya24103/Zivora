@@ -33,12 +33,18 @@ export default function Login() {
         // Store session tokens
         localStorage.setItem('zivora_token', token);
         localStorage.setItem('zivora_user', JSON.stringify(user));
+        if (user.role === 'admin') {
+          localStorage.setItem('zivora_admin_token', token);
+          localStorage.setItem('zivora_admin_user', JSON.stringify(user));
+        }
 
         setSuccessMsg(`Welcome back, ${user.name}! Redirecting...`);
 
         // Wait 1.5 seconds for a premium success transition before redirecting
         setTimeout(() => {
-          if (!user.isVerified) {
+          if (user.role === 'admin') {
+            navigate('/admin/dashboard');
+          } else if (!user.isVerified) {
             navigate('/verification-pending');
           } else if (user.role === 'seller') {
             navigate('/seller/dashboard');

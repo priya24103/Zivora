@@ -500,11 +500,15 @@ export default function Header() {
                         <button 
                           onClick={() => {
                             setDropdownOpen(false);
-                            navigate('/buyer/dashboard');
+                            if (user.role === 'admin') {
+                              navigate('/admin/dashboard');
+                            } else {
+                              navigate('/buyer/dashboard');
+                            }
                           }}
                           className="w-full text-left px-4 py-2 text-xs hover:bg-[#F7F3EF] transition-colors flex items-center gap-2 cursor-pointer font-medium"
                         >
-                          Buyer Dashboard
+                          {user.role === 'admin' ? 'Admin Dashboard' : 'Buyer Dashboard'}
                         </button>
 
                         <button 
