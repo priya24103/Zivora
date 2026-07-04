@@ -134,23 +134,6 @@ npm run dev
 
 ```
 
-### 4. Initialization Configuration (Seeding Admin)
-
-Because admin accounts are locked down against standard registration routes, open MongoDB Compass or Mongo Shell and manually append the primary system administrator document:
-
-```json
-{
-  "name": "Priya Admin",
-  "email": "admin@gmail.com",
-  "password": "$2b$10$YourHashedBcryptPasswordStringHere",
-  "role": "admin",
-  "status": "active"
-}
-
-```
-
----
-
 ## 🔒 Security & Data Integrity Validations
 
 * **Race-Condition Overrides:** Checkout systems verify live item availability checks prior to forwarding payment payloads, preventing multi-user direct checkouts on the exact same physical stone.
