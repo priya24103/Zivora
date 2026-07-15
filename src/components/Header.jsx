@@ -511,6 +511,18 @@ export default function Header() {
                           {user.role === 'admin' ? 'Admin Dashboard' : 'Buyer Dashboard'}
                         </button>
 
+                        {user.role === 'buyer' && (
+                          <button 
+                            onClick={() => {
+                              setDropdownOpen(false);
+                              navigate('/my-orders');
+                            }}
+                            className="w-full text-left px-4 py-2 text-xs hover:bg-[#F7F3EF] transition-colors flex items-center gap-2 cursor-pointer font-medium"
+                          >
+                            My Orders
+                          </button>
+                        )}
+
                         <button 
                           onClick={() => {
                             setDropdownOpen(false);

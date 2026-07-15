@@ -4,6 +4,9 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import BuyerDashboard from './pages/BuyerDashboard';
+import MyOrders from './pages/MyOrders';
+import VerifyEmail from './pages/VerifyEmail';
+import AdminKYC from './pages/admin/AdminKYC';
 import SellerDashboard from './pages/SellerDashboard';
 import AddProduct from './pages/AddProduct';
 import VerificationPending from './pages/VerificationPending';
@@ -57,6 +60,8 @@ function AppContent() {
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/buyer/dashboard" element={<BuyerDashboard />} />
+          <Route path="/my-orders" element={<MyOrders />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/seller/dashboard" element={<SellerDashboard />} />
           <Route path="/seller/add-product" element={<AddProduct />} />
           <Route path="/rfq/create" element={<CreateRfq />} />
@@ -77,6 +82,7 @@ function AppContent() {
             <Route path="users" element={<UserManagement />} />
             <Route path="inventory" element={<GlobalInventory />} />
             <Route path="auctions-rfqs" element={<AuctionsAndRfqs />} />
+            <Route path="kyc-management" element={<AdminKYC />} />
           </Route>
         </Routes>
       </main>

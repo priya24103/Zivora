@@ -579,7 +579,37 @@ export default function SellerDashboard() {
   });
 
   const kycStatus = user.sellerProfile?.kycStatus || 'pending';
+  const isKycVerified = kycStatus === 'approved';
   const kycRemarks = user.sellerProfile?.kycRemarks || 'Your business documents are currently being processed.';
+
+  if (user.isVerified === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: '#F1EDE6' }}>
+        <div className="w-full max-w-md bg-white border border-[#A48374]/20 rounded-3xl p-8 shadow-xl text-center font-sans">
+          <div className="w-16 h-16 rounded-full bg-[#F5F1EC] flex items-center justify-center mx-auto text-[#A48374] mb-4">
+            <Mail className="w-8 h-8" />
+          </div>
+          <h2 className="text-2xl text-[#3A2D28] mb-2" style={{ fontFamily: 'Georgia, serif', fontWeight: 300 }}>Verify Your Email</h2>
+          <p className="text-xs text-[#A48374] leading-relaxed mb-6">
+            We have sent a verification code to <strong>{user.email}</strong>. Please complete the verification process to activate your account.
+          </p>
+          <button
+            onClick={() => navigate('/verify-email')}
+            className="w-full py-3 rounded-full text-white text-xs uppercase tracking-widest font-bold hover:opacity-95 transition-opacity cursor-pointer shadow-sm"
+            style={{ backgroundColor: '#A48374' }}
+          >
+            Enter Verification Code
+          </button>
+          <button
+            onClick={handleLogout}
+            className="mt-4 text-xs font-semibold text-[#A48374] hover:text-[#3A2D28] transition-colors uppercase tracking-wider block mx-auto cursor-pointer"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen py-10 px-4 lg:px-12" style={{ backgroundColor: '#F7F3EF' }}>
@@ -612,23 +642,40 @@ export default function SellerDashboard() {
         </div>
 
         {/* ─── KYC VERIFICATION BANNER ───────────────────────────────────── */}
-        {kycStatus !== 'approved' && (
-          <motion.div 
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8 p-5 rounded-2xl border flex flex-col md:flex-row items-start gap-4 bg-[#FFFBEB] border-[#FDE68A] text-[#92400E]"
-          >
-            <div className="p-2.5 rounded-xl flex-shrink-0 bg-[#FEF3C7]">
-              <ShieldAlert className="w-5 h-5" />
+        {kycStatus === 'rejected' && (
+          <div className="mb-8 p-5 rounded-2xl border border-red-200 bg-red-50/40 flex items-start gap-4">
+            <div className="p-2.5 rounded-xl bg-red-100/50 flex-shrink-0 text-red-600">
+              <AlertCircle className="w-5 h-5" />
             </div>
             <div className="flex-1 text-xs">
-              <h3 className="font-bold uppercase tracking-wider">KYC Verification Required</h3>
-              <p className="mt-1 leading-relaxed opacity-90">
-                Your business documents (GST: {user.sellerProfile?.gstNumber}, PAN: {user.sellerProfile?.panNumber}) are being reviewed. Listing permissions are disabled until verification completes.
+              <h4 className="font-bold text-red-800 uppercase tracking-wider">eKYC Verification Rejected</h4>
+              <p className="text-[#3A2D28] mt-1 leading-relaxed">
+                Your submitted business registration proofs were rejected by our compliance administrators.
               </p>
-              {kycRemarks && <p className="mt-2 font-medium italic">Status: {kycRemarks}</p>}
+              {kycRemarks && (
+                <p className="mt-2 text-red-700 font-medium italic">
+                  Reason: {kycRemarks}
+                </p>
+              )}
+              <p className="mt-2 text-xs text-[#A48374]">
+                Please contact Zivora support to update your registration credentials.
+              </p>
             </div>
-          </motion.div>
+          </div>
+        )}
+
+        {kycStatus === 'pending' && (
+          <div className="mb-8 p-5 rounded-2xl border border-[#A48374]/30 bg-[#FBF9F6] flex items-start gap-4">
+            <div className="p-2.5 rounded-xl bg-[#F5F1EC] flex-shrink-0 text-[#A48374] animate-pulse">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div className="flex-1 text-xs">
+              <h4 className="font-bold text-[#3A2D28] uppercase tracking-wider">eKYC Under Review</h4>
+              <p className="text-[#A48374] mt-1 leading-relaxed">
+                Your business credentials (GST: {user.sellerProfile?.gstNumber}, PAN: {user.sellerProfile?.panNumber}) and uploaded proofs are currently being processed. Product listing and auction actions will be unlocked as soon as compliance approval is granted.
+              </p>
+            </div>
+          </div>
         )}
 
         {/* ─── TAB NAVIGATION SWITCH ──────────────────────────────────────── */}
@@ -792,8 +839,15 @@ export default function SellerDashboard() {
                       <h3 className="text-xl font-light text-[#3A2D28] mb-6" style={{ fontFamily: 'Georgia, serif' }}>Quick Actions</h3>
                       <div className="grid grid-cols-2 gap-4">
                         <button 
-                          onClick={() => navigate('/seller/add-product')}
-                          className="flex flex-col items-center justify-center p-6 bg-white rounded-2xl border border-[#CBAD8D]/20 hover:border-[#A48374] hover:bg-[#FBF9F6] transition-all group cursor-pointer"
+                          onClick={() => {
+                            if (!isKycVerified) {
+                              alert(`Access Denied. Your eKYC review status is "${kycStatus.toUpperCase()}". Listing permissions are disabled.`);
+                            } else {
+                              navigate('/seller/add-product');
+                            }
+                          }}
+                          disabled={!isKycVerified}
+                          className={`flex flex-col items-center justify-center p-6 bg-white rounded-2xl border border-[#CBAD8D]/20 transition-all group cursor-pointer ${!isKycVerified ? 'opacity-50 cursor-not-allowed' : 'hover:border-[#A48374] hover:bg-[#FBF9F6]'}`}
                         >
                           <PlusCircle className="w-8 h-8 text-[#A48374] mb-3 group-hover:scale-110 transition-transform" />
                           <span className="text-[10px] font-bold text-[#3A2D28] uppercase tracking-wider text-center">Add Product</span>
@@ -882,8 +936,15 @@ export default function SellerDashboard() {
                     <h3 className="text-2xl text-[#3A2D28]" style={{ fontFamily: 'Georgia, serif', fontWeight: 300 }}>Inventory Catalog</h3>
                   </div>
                   <button 
-                    onClick={() => navigate('/seller/add-product')}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-[#3A2D28] text-white text-xs font-bold uppercase tracking-wider rounded-full hover:bg-[#A48374] transition-colors cursor-pointer shadow-md"
+                    onClick={() => {
+                      if (!isKycVerified) {
+                        alert(`Access Denied. Your eKYC review status is "${kycStatus.toUpperCase()}". Listing permissions are disabled.`);
+                      } else {
+                        navigate('/seller/add-product');
+                      }
+                    }}
+                    disabled={!isKycVerified}
+                    className={`inline-flex items-center gap-2 px-6 py-3 text-white text-xs font-bold uppercase tracking-wider rounded-full transition-colors shadow-md ${!isKycVerified ? 'bg-gray-400 opacity-60 cursor-not-allowed' : 'bg-[#3A2D28] hover:bg-[#A48374] cursor-pointer'}`}
                   >
                     <PlusCircle className="w-4 h-4" />
                     List New Diamond

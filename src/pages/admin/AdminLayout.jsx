@@ -9,7 +9,8 @@ import {
   ShieldCheck, 
   User as UserIcon,
   Menu,
-  X
+  X,
+  FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -44,6 +45,7 @@ export default function AdminLayout() {
   const navLinks = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'User Management', path: '/admin/users', icon: Users },
+    { name: 'Seller KYC', path: '/admin/kyc-management', icon: FileText },
     { name: 'Global Inventory', path: '/admin/inventory', icon: Diamond },
     { name: 'Auctions & RFQs', path: '/admin/auctions-rfqs', icon: Gavel }
   ];
