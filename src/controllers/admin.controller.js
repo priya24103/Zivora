@@ -3,6 +3,7 @@ const { Product } = require('../models/Product');
 const Auction = require('../models/Auction');
 const RFQ = require('../models/RFQ');
 const jwt = require('jsonwebtoken');
+const { sendKycResultEmail } = require('../utils/sendEmail');
 
 // Helper to generate JWT token for admin session
 const generateToken = (userId) => {
@@ -259,6 +260,87 @@ exports.getRfqs = async (req, res, next) => {
       results: rfqs.length,
       data: {
         rfqs
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get all pending eKYC requests for sellers
+ * @route   GET /api/admin/kyc-requests
+ * @access  Admin Only
+ */
+exports.getKycRequests = async (req, res, next) => {
+  try {
+    const users = await User.find({
+      role: 'seller',
+      isVerified: true,
+      'sellerProfile.kycStatus': 'pending'
+    }).sort({ createdAt: 1 }); // Process in order of signup
+
+    res.status(200).json({
+      status: 'success',
+      results: users.length,
+      data: {
+        sellers: users
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Approve or reject a seller's KYC document application
+ * @route   PUT /api/admin/kyc/:userId/action
+ * @access  Admin Only
+ */
+exports.takeKycAction = async (req, res, next) => {
+  try {
+    const { action } = req.body;
+    const { userId } = req.params;
+
+    if (!action || !['approve', 'reject'].includes(action)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid action. Action must be "approve" or "reject".'
+      });
+    }
+
+    const seller = await User.findById(userId);
+    if (!seller) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Seller user not found'
+      });
+    }
+
+    if (!seller.sellerProfile) {
+      seller.sellerProfile = {};
+    }
+
+    if (action === 'approve') {
+      seller.sellerProfile.kycStatus = 'approved';
+    } else {
+      seller.sellerProfile.kycStatus = 'rejected';
+    }
+
+    await seller.save();
+
+    // Trigger automated email status notification
+    sendKycResultEmail(
+      seller.email,
+      action === 'approve' ? 'Approved' : 'Rejected',
+      seller.name
+    ).catch(err => console.error('Failed to send eKYC result notification email:', err));
+
+    res.status(200).json({
+      status: 'success',
+      message: `KYC application successfully ${action === 'approve' ? 'approved' : 'rejected'}.`,
+      data: {
+        seller
       }
     });
   } catch (error) {
