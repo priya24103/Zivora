@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const { sendOtpEmail } = require('../utils/sendEmail');
 
 // Helper to generate JWT token
 const generateToken = (userId) => {
@@ -23,13 +24,20 @@ exports.signup = async (req, res, next) => {
       });
     }
 
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
     // Prepare user fields
     const userData = {
       name,
       email,
       password,
       phone,
-      role: role || 'buyer'
+      role: role || 'buyer',
+      isVerified: false,
+      emailVerificationOtp: otp,
+      otpExpiresAt
     };
 
     // If role is seller, validate and inject seller profile
@@ -41,7 +49,6 @@ exports.signup = async (req, res, next) => {
         });
       }
 
-      // Ensure mandatory fields exist for registration (optional at schema, but checked here)
       const { panNumber, gstNumber, businessProofUrl, idProofUrl } = sellerProfile;
       if (!panNumber || !gstNumber) {
         return res.status(400).json({
@@ -53,7 +60,7 @@ exports.signup = async (req, res, next) => {
       userData.sellerProfile = {
         panNumber,
         gstNumber,
-        businessProofUrl: businessProofUrl || null,
+        businessProofUrl: businessProofUrl || [],
         idProofUrl: idProofUrl || null,
         kycStatus: 'pending',
         kycRemarks: ''
@@ -62,6 +69,9 @@ exports.signup = async (req, res, next) => {
 
     // Create user in DB
     const user = await User.create(userData);
+
+    // Send the verification OTP
+    await sendOtpEmail(user.email, otp);
 
     // Generate JWT token
     const token = generateToken(user._id);
@@ -72,7 +82,7 @@ exports.signup = async (req, res, next) => {
 
     res.status(201).json({
       status: 'success',
-      message: 'Account created successfully',
+      message: 'Account created successfully. Please verify your email with the OTP sent.',
       token,
       data: {
         user: userResponse
@@ -137,6 +147,122 @@ exports.login = async (req, res, next) => {
       data: {
         user: userResponse
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Register a new user (Alias for compatibility)
+// @route   POST /api/auth/register
+// @access  Public
+exports.register = exports.signup;
+
+// @desc    Verify email with OTP
+// @route   POST /api/auth/verify-email
+// @access  Public
+exports.verifyEmail = async (req, res, next) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Please provide both email and OTP'
+      });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'No user account found with this email'
+      });
+    }
+
+    // Check if OTP matches and has not expired
+    if (!user.emailVerificationOtp || user.emailVerificationOtp !== otp) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid verification code'
+      });
+    }
+
+    if (user.otpExpiresAt && user.otpExpiresAt < new Date()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Verification code has expired.'
+      });
+    }
+
+    // Set user verified state
+    user.isVerified = true;
+    user.emailVerificationOtp = null;
+    user.otpExpiresAt = null;
+    await user.save();
+
+    // Generate JWT token
+    const token = generateToken(user._id);
+
+    const userResponse = user.toObject();
+    delete userResponse.password;
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Email address verified successfully.',
+      token,
+      data: {
+        user: userResponse
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Resend OTP verification code
+// @route   POST /api/auth/resend-otp
+// @access  Public
+exports.resendOtp = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Please provide email address'
+      });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'No user account found with this email'
+      });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'This email is already verified. Please log in.'
+      });
+    }
+
+    // Generate new 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    user.emailVerificationOtp = otp;
+    user.otpExpiresAt = otpExpiresAt;
+    await user.save();
+
+    // Trigger email utility
+    await sendOtpEmail(user.email, otp);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'A new verification code has been sent to your email.'
     });
   } catch (error) {
     next(error);

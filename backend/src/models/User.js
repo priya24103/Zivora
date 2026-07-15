@@ -64,6 +64,14 @@ const userSchema = new mongoose.Schema({
     type: sellerProfileSchema,
     // Makes the profile mandatory only if the user is a seller
     required: function () { return this.role === 'seller'; }
+  },
+  emailVerificationOtp: {
+    type: String,
+    default: null
+  },
+  otpExpiresAt: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true

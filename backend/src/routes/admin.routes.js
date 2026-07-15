@@ -14,5 +14,7 @@ router.put('/users/:id/status', isAdmin, adminController.toggleUserStatus);
 router.get('/products', isAdmin, adminController.getProducts);
 router.get('/auctions', isAdmin, adminController.getAuctions);
 router.get('/rfqs', isAdmin, adminController.getRfqs);
+router.get('/kyc-requests', isAdmin, adminController.getKycRequests);
+router.put('/kyc/:userId/action', isAdmin, adminController.takeKycAction);
 
 module.exports = router;

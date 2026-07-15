@@ -75,6 +75,15 @@ const orderSchema = new mongoose.Schema({
     enum: ['processing', 'shipped', 'delivered', 'cancelled'],
     default: 'processing'
   },
+  fulfillmentStatus: {
+    type: String,
+    enum: ['processing', 'shipped', 'delivered', 'cancelled'],
+    default: 'processing'
+  },
+  trackingNumber: {
+    type: String,
+    default: null
+  },
   totalAmount: {
     type: Number,
     required: [true, 'Total amount is required'],
