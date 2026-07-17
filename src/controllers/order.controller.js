@@ -156,7 +156,7 @@ exports.getMyOrders = async (req, res, next) => {
     const orders = await Order.find({ buyerId: req.user._id })
       .populate({
         path: 'items.productId',
-        select: 'title images category weightGrams jewelryType metalType carat color clarity cut shape description'
+        select: 'title images category weightGrams jewelryType metalType carat color clarity cut shape description listingType'
       })
       .sort({ createdAt: -1 });
 

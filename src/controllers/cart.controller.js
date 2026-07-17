@@ -267,20 +267,37 @@ exports.checkout = async (req, res, next) => {
       phoneNumber: req.user.phone || '0000000000'
     };
 
-    // 4. Create the new pending Order document (spanning all items)
-    const order = await Order.create({
+    // 4. Find if there is an existing pending standard checkout order for this buyer
+    let order = await Order.findOne({
       buyerId: req.user._id,
-      sellerIds: Array.from(sellerIdsSet),
-      items: orderItems,
-      shippingAddress,
-      paymentStatus: 'pending',
-      orderStatus: 'processing',
-      totalAmount
-    });
+      paymentStatus: 'pending'
+    }).populate('items.productId');
 
-    // 5. Clear the user's Cart document entirely
-    cart.items = [];
-    await cart.save();
+    const isAuctionOrder = order && order.items.some(item => item.productId && item.productId.listingType === 'auction');
+
+    if (order && !isAuctionOrder) {
+      // Reuse and update the existing pending order with current cart items
+      order.sellerIds = Array.from(sellerIdsSet);
+      order.items = orderItems;
+      order.totalAmount = totalAmount;
+      order.shippingAddress = shippingAddress;
+      await order.save();
+    } else {
+      // Create a new pending order
+      order = await Order.create({
+        buyerId: req.user._id,
+        sellerIds: Array.from(sellerIdsSet),
+        items: orderItems,
+        shippingAddress,
+        paymentStatus: 'pending',
+        orderStatus: 'processing',
+        totalAmount
+      });
+    }
+
+    // Note: The cart is intentionally NOT cleared here. It remains intact so that 
+    // navigating back doesn't empty the buyer's cart. The cart will be cleared 
+    // upon successful payment verification (POST /api/payment/verify).
 
     // 6. Return orderId
     res.status(200).json({
