@@ -199,6 +199,7 @@ export default function Checkout() {
           ondismiss: function () {
             // Handle edge case: user closing the Razorpay modal without paying
             setCheckoutLoading(false);
+            navigate('/cart');
           }
         }
       };
@@ -211,6 +212,10 @@ export default function Checkout() {
       setError(err.response?.data?.message || err.message || 'Failed to initiate secure checkout. Please try again.');
       setCheckoutLoading(false);
     }
+  };
+
+  const handleBackToCart = () => {
+    navigate('/cart');
   };
 
   const formatINR = (amount) => {
@@ -237,7 +242,7 @@ export default function Checkout() {
       <div className="max-w-5xl mx-auto">
         {/* Back link */}
         <button
-          onClick={() => navigate('/cart')}
+          onClick={handleBackToCart}
           className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#A48374] hover:text-[#3A2D28] transition-colors mb-8 cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />

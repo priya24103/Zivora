@@ -13,6 +13,7 @@ export default function Cart() {
     cartTotal,
     removeFromCart,
     checkoutCart,
+    fetchCart,
     loading,
     error,
     setError
@@ -35,7 +36,13 @@ export default function Cart() {
       if (response.data.status === 'success') {
         const myOrders = response.data.data.orders || [];
         const pending = myOrders.filter(o => o.paymentStatus === 'pending' && o.orderStatus !== 'cancelled');
-        setPendingOrders(pending);
+
+        // We only show won auctions in the Cart's staging list, since standard checkouts are already in their active cart
+        const pendingAuctions = pending.filter(o => {
+          return o.items?.some(item => item.productId?.listingType === 'auction');
+        });
+
+        setPendingOrders(pendingAuctions);
       }
     } catch (err) {
       console.error('Error fetching pending orders:', err);
@@ -64,8 +71,6 @@ export default function Cart() {
 
   useEffect(() => {
     fetchPendingOrders();
-    window.addEventListener('storage', fetchPendingOrders);
-    return () => window.removeEventListener('storage', fetchPendingOrders);
   }, []);
 
   const handleRemoveItem = async (productId) => {
