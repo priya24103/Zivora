@@ -196,10 +196,23 @@ export default function Checkout() {
           color: '#3A2D28'
         },
         modal: {
-          ondismiss: function () {
+          ondismiss: async function () {
             // Handle edge case: user closing the Razorpay modal without paying
             setCheckoutLoading(false);
-            navigate('/cart');
+            try {
+              const token = localStorage.getItem('zivora_token');
+              if (token && orderId) {
+                await axios.post(
+                  `${API_BASE}/orders/${orderId}/cancel`,
+                  {},
+                  { headers: { Authorization: `Bearer ${token}` } }
+                );
+              }
+            } catch (err) {
+              console.error('Error cancelling order on payment close:', err);
+            } finally {
+              navigate('/cart');
+            }
           }
         }
       };
@@ -214,8 +227,21 @@ export default function Checkout() {
     }
   };
 
-  const handleBackToCart = () => {
-    navigate('/cart');
+  const handleBackToCart = async () => {
+    try {
+      const token = localStorage.getItem('zivora_token');
+      if (token && orderId) {
+        await axios.post(
+          `${API_BASE}/orders/${orderId}/cancel`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
+    } catch (err) {
+      console.error('Error cancelling order during exit:', err);
+    } finally {
+      navigate('/cart');
+    }
   };
 
   const formatINR = (amount) => {

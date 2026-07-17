@@ -12,6 +12,7 @@ export default function Cart() {
     cartItems,
     cartTotal,
     removeFromCart,
+    updateQuantity,
     checkoutCart,
     fetchCart,
     loading,
@@ -21,10 +22,14 @@ export default function Cart() {
 
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null); // stores productId being removed
+  const [updatingQuantityId, setUpdatingQuantityId] = useState(null); // stores productId being modified in quantity
+  const [selectedItems, setSelectedItems] = useState([]); // stores product IDs of checked items
+  
   const [pendingOrders, setPendingOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
 
-  const fetchPendingOrders = async () => {
+  // Fetch pending orders (won auctions staging) on mount, with optional cleanup
+  const fetchPendingOrders = async (shouldCleanup = false) => {
     try {
       const token = localStorage.getItem('zivora_token');
       if (!token) return;
@@ -36,6 +41,46 @@ export default function Cart() {
       if (response.data.status === 'success') {
         const myOrders = response.data.data.orders || [];
         const pending = myOrders.filter(o => o.paymentStatus === 'pending' && o.orderStatus !== 'cancelled');
+
+        if (shouldCleanup) {
+          // Identify standard pending checkout orders (which do NOT have auction items)
+          const standardPendingOrders = pending.filter(o => {
+            const hasAuctionItem = o.items?.some(item => item.productId?.listingType === 'auction');
+            return !hasAuctionItem;
+          });
+
+          if (standardPendingOrders.length > 0) {
+            let cancelledAny = false;
+            for (const order of standardPendingOrders) {
+              try {
+                await axios.post(`${API_BASE}/orders/${order._id}/cancel`, {}, {
+                  headers: { Authorization: `Bearer ${token}` }
+                });
+                cancelledAny = true;
+              } catch (cancelErr) {
+                console.error(`Silent background cancel failed for order ${order._id}:`, cancelErr);
+              }
+            }
+            if (cancelledAny) {
+              // Re-fetch cart and pending orders since items were restored to bag
+              await fetchCart();
+              const updatedResponse = await axios.get(`${API_BASE}/orders/my-orders`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              if (updatedResponse.data.status === 'success') {
+                const updatedOrders = updatedResponse.data.data.orders || [];
+                const updatedPending = updatedOrders.filter(o => o.paymentStatus === 'pending' && o.orderStatus !== 'cancelled');
+                
+                // Show only won auctions in the Cart's staging list
+                const pendingAuctions = updatedPending.filter(o => {
+                  return o.items?.some(item => item.productId?.listingType === 'auction');
+                });
+                setPendingOrders(pendingAuctions);
+              }
+              return;
+            }
+          }
+        }
 
         // We only show won auctions in the Cart's staging list, since standard checkouts are already in their active cart
         const pendingAuctions = pending.filter(o => {
@@ -70,8 +115,51 @@ export default function Cart() {
   };
 
   useEffect(() => {
-    fetchPendingOrders();
+    fetchCart();
+    // Run background cleanup check on initial page mount to restore abandoned checkout items
+    fetchPendingOrders(true);
   }, []);
+
+  // Initialize selectedItems with all product IDs when cartItems loads
+  useEffect(() => {
+    if (cartItems && cartItems.length > 0) {
+      setSelectedItems(prev => {
+        const currentIds = cartItems.map(item => item.productId?._id).filter(Boolean);
+        // By default, select all items if none were selected previously
+        if (prev.length === 0) {
+          return currentIds;
+        }
+        // Filter out any IDs that were removed from the cart
+        return prev.filter(id => currentIds.includes(id));
+      });
+    } else {
+      setSelectedItems([]);
+    }
+  }, [cartItems]);
+
+  const handleCheckboxChange = (productId) => {
+    setSelectedItems(prev => 
+      prev.includes(productId) 
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId]
+    );
+  };
+
+  const handleQuantityChange = async (productId, currentQty, increment) => {
+    const newQty = currentQty + increment;
+    if (newQty < 1) {
+      if (newQty === 0) {
+        if (window.confirm('Remove this item from your shopping bag?')) {
+          await handleRemoveItem(productId);
+        }
+        return;
+      }
+      return;
+    }
+    setUpdatingQuantityId(productId);
+    await updateQuantity(productId, newQty);
+    setUpdatingQuantityId(null);
+  };
 
   const handleRemoveItem = async (productId) => {
     setActionLoading(productId);
@@ -80,10 +168,11 @@ export default function Cart() {
   };
 
   const handleCheckout = async () => {
+    if (selectedItems.length === 0) return;
     setError(null);
     setCheckoutLoading(true);
     try {
-      const orderId = await checkoutCart();
+      const orderId = await checkoutCart(selectedItems);
       if (orderId) {
         navigate(`/checkout/${orderId}`);
       }
@@ -139,6 +228,16 @@ export default function Cart() {
   }
 
   const hasItems = cartItems && cartItems.length > 0;
+
+  // Calculate dynamic Subtotal and Total based ONLY on selected items
+  const selectedCartItems = cartItems.filter(item => 
+    item.productId && selectedItems.includes(item.productId._id)
+  );
+
+  const dynamicSubtotal = selectedCartItems.reduce((sum, item) => {
+    const price = item.productId ? item.productId.price : 0;
+    return sum + (price * item.quantity);
+  }, 0);
 
   return (
     <div className="min-h-screen py-16 px-4 md:px-8 lg:px-16" style={{ backgroundColor: '#F1EDE6' }}>
@@ -229,13 +328,37 @@ export default function Cart() {
               {cartItems.map((item) => {
                 const prod = item.productId || {};
                 const imageSrc = prod.images && prod.images.length > 0 ? prod.images[0] : '';
+                const isSelected = selectedItems.includes(prod._id);
 
                 return (
                   <div
                     key={item._id || prod._id}
-                    className="bg-white rounded-3xl p-5 md:p-6 border border-[#E6DFD6] flex flex-col md:flex-row gap-5 items-start md:items-center justify-between hover:shadow-md transition-shadow relative overflow-hidden group"
+                    className={`bg-white rounded-3xl p-5 md:p-6 border flex flex-col md:flex-row gap-5 items-start md:items-center justify-between hover:shadow-md transition-all relative overflow-hidden group ${
+                      isSelected ? 'border-[#A48374]/30' : 'border-[#E6DFD6] opacity-70'
+                    }`}
                   >
-                    <div className="flex gap-4 md:gap-6 items-center flex-1">
+                    <div className="flex gap-4 md:gap-6 items-center flex-1 w-full">
+                      {/* Sleek Checkbox */}
+                      <label className="flex items-center cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleCheckboxChange(prod._id)}
+                          className="sr-only"
+                        />
+                        <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
+                          isSelected
+                            ? 'bg-[#3A2D28] border-[#3A2D28] text-[#F1EDE6]'
+                            : 'border-[#CBAD8D]/40 bg-white hover:border-[#3A2D28]'
+                        }`}>
+                          {isSelected && (
+                            <svg className="w-3.5 h-3.5 fill-current text-white" viewBox="0 0 20 20">
+                              <path d="M0 11l2-2 5 5L18 3l2 2L7 18z" />
+                            </svg>
+                          )}
+                        </div>
+                      </label>
+
                       {/* Image Thumbnail */}
                       <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-[#F7F3EF] border border-[#EBE3DB] flex-shrink-0 overflow-hidden flex items-center justify-center">
                         {imageSrc ? (
@@ -250,16 +373,40 @@ export default function Cart() {
                       </div>
 
                       {/* Details */}
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <div className="text-[10px] uppercase font-bold tracking-widest text-[#A48374] mb-1">
                           {prod.category}
                         </div>
                         <h3 className="font-serif text-[#3A2D28] text-sm md:text-base font-semibold leading-snug line-clamp-2 pr-4">
                           {prod.title || 'Premium Marketplace Item'}
                         </h3>
-                        <p className="text-[11px] font-medium text-[#A48374] mt-1">
-                          Quantity: <span className="text-[#3A2D28] font-bold">{item.quantity}</span>
-                        </p>
+                        
+                        {/* Refined Quantity Stepper */}
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-[11px] font-medium text-[#A48374]">Quantity:</span>
+                          <div className="flex items-center border border-[#CBAD8D]/30 rounded-lg overflow-hidden bg-white">
+                            <button
+                              onClick={() => handleQuantityChange(prod._id, item.quantity, -1)}
+                              disabled={updatingQuantityId === prod._id}
+                              className="px-2 py-1 text-xs hover:bg-[#F7F3EF] text-[#3A2D28] font-bold cursor-pointer disabled:opacity-30 transition-colors"
+                            >
+                              -
+                            </button>
+                            <span className="px-2.5 text-xs font-bold text-[#3A2D28] min-w-[16px] text-center">
+                              {item.quantity}
+                            </span>
+                            <button
+                              onClick={() => handleQuantityChange(prod._id, item.quantity, 1)}
+                              disabled={updatingQuantityId === prod._id || (prod.stock !== undefined && item.quantity >= prod.stock)}
+                              className="px-2 py-1 text-xs hover:bg-[#F7F3EF] text-[#3A2D28] font-bold cursor-pointer disabled:opacity-30 transition-colors"
+                            >
+                              +
+                            </button>
+                          </div>
+                          {prod.stock !== undefined && item.quantity >= prod.stock && (
+                            <span className="text-[9px] text-[#A48374] font-medium italic ml-1">Max Stock reached</span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -298,8 +445,8 @@ export default function Cart() {
 
                 <div className="space-y-4 text-xs">
                   <div className="flex justify-between text-[#A48374]">
-                    <span>Subtotal</span>
-                    <span className="font-semibold text-[#3A2D28]">{formatINR(cartTotal)}</span>
+                    <span>Subtotal ({selectedCartItems.length} items selected)</span>
+                    <span className="font-semibold text-[#3A2D28]">{formatINR(dynamicSubtotal)}</span>
                   </div>
                   <div className="flex justify-between text-[#A48374]">
                     <span>Estimated Shipping</span>
@@ -309,15 +456,15 @@ export default function Cart() {
                   <div className="pt-4 border-t border-[#F7F3EF] flex justify-between items-baseline">
                     <span className="text-sm font-serif text-[#3A2D28]">Total (VAT Incl.)</span>
                     <span className="text-lg md:text-xl font-serif font-bold text-[#3A2D28]">
-                      {formatINR(cartTotal)}
+                      {formatINR(dynamicSubtotal)}
                     </span>
                   </div>
                 </div>
 
                 <button
                   onClick={handleCheckout}
-                  disabled={checkoutLoading}
-                  className="w-full mt-8 py-4 bg-[#3A2D28] text-white text-xs font-semibold uppercase tracking-widest rounded-full hover:opacity-90 transition-opacity flex items-center justify-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
+                  disabled={checkoutLoading || selectedItems.length === 0}
+                  className="w-full mt-8 py-4 bg-[#3A2D28] text-white text-xs font-semibold uppercase tracking-widest rounded-full hover:opacity-90 transition-opacity flex items-center justify-center gap-2 cursor-pointer shadow-sm disabled:opacity-30 disabled:bg-[#A48374]/40"
                 >
                   {checkoutLoading ? (
                     <>
