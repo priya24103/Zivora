@@ -207,8 +207,20 @@ exports.removeFromCart = async (req, res, next) => {
 // @desc    Checkout the cart and create a pending order
 // @route   POST /api/cart/checkout
 // @access  Private
+// @desc    Checkout the cart and create a pending order (selective checkout)
+// @route   POST /api/cart/checkout
+// @access  Private
 exports.checkout = async (req, res, next) => {
   try {
+    const { selectedProductIds } = req.body;
+
+    if (!selectedProductIds || !Array.isArray(selectedProductIds) || selectedProductIds.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'selectedProductIds is required and must be a non-empty array.'
+      });
+    }
+
     // 1. Fetch user's cart populated with current product details
     const cart = await Cart.findOne({ buyerId: req.user._id }).populate({
       path: 'items.productId',
@@ -222,24 +234,36 @@ exports.checkout = async (req, res, next) => {
       });
     }
 
-    // 2. Verify all items are still status: 'available' and in stock
+    // 2. Filter cart items to only include those whose productId is in the selectedProductIds array
+    const selectedItems = cart.items.filter(item => 
+      item.productId && selectedProductIds.includes(item.productId._id.toString())
+    );
+
+    if (selectedItems.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'None of the selected items were found in your cart'
+      });
+    }
+
+    // 3. Verify stock availability only for this filtered subset
     const orderItems = [];
     const sellerIdsSet = new Set();
     let totalAmount = 0;
 
-    for (const item of cart.items) {
+    for (const item of selectedItems) {
       const product = item.productId;
       if (!product) {
         return res.status(400).json({
           status: 'error',
-          message: 'One of the items in your cart is no longer available'
+          message: 'One of the selected items is no longer available'
         });
       }
 
       if (product.status !== 'available' || product.stock < item.quantity) {
         return res.status(400).json({
           status: 'error',
-          message: `Product "${product.title}" is out of stock or no longer available`
+          message: `Product "${product.title}" is out of stock or has insufficient stock`
         });
       }
 
@@ -257,7 +281,7 @@ exports.checkout = async (req, res, next) => {
       totalAmount += product.price * item.quantity;
     }
 
-    // 3. Generate placeholder shipping address since user will finalize it on checkout page
+    // 4. Generate placeholder shipping address since user will finalize it on checkout page
     const shippingAddress = {
       fullName: req.user.name || 'Valued Client',
       streetAddress: 'Pending Address Confirmation',
@@ -267,7 +291,7 @@ exports.checkout = async (req, res, next) => {
       phoneNumber: req.user.phone || '0000000000'
     };
 
-    // 4. Find if there is an existing pending standard checkout order for this buyer
+    // 5. Find if there is an existing pending standard checkout order for this buyer
     let order = await Order.findOne({
       buyerId: req.user._id,
       paymentStatus: 'pending'
@@ -276,7 +300,7 @@ exports.checkout = async (req, res, next) => {
     const isAuctionOrder = order && order.items.some(item => item.productId && item.productId.listingType === 'auction');
 
     if (order && !isAuctionOrder) {
-      // Reuse and update the existing pending order with current cart items
+      // Reuse and update the existing pending order with selected cart items
       order.sellerIds = Array.from(sellerIdsSet);
       order.items = orderItems;
       order.totalAmount = totalAmount;
@@ -295,16 +319,106 @@ exports.checkout = async (req, res, next) => {
       });
     }
 
-    // Note: The cart is intentionally NOT cleared here. It remains intact so that 
-    // navigating back doesn't empty the buyer's cart. The cart will be cleared 
-    // upon successful payment verification (POST /api/payment/verify).
+    // 6. Cart Cleanup: pull only checked-out items from the user's cart array
+    await Cart.updateOne(
+      { buyerId: req.user._id },
+      { $pull: { items: { productId: { $in: selectedProductIds } } } }
+    );
 
-    // 6. Return orderId
+    // 7. Return orderId
     res.status(200).json({
       status: 'success',
       message: 'Checkout initialized successfully',
       data: {
         orderId: order._id
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update quantity of a specific item in the cart
+// @route   PUT /api/cart/update-quantity
+// @access  Private
+exports.updateQuantity = async (req, res, next) => {
+  try {
+    const { productId, quantity } = req.body;
+
+    if (!productId || quantity === undefined) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Product ID and quantity are required.'
+      });
+    }
+
+    const qty = Number(quantity);
+    if (isNaN(qty) || qty < 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Quantity must be a non-negative number.'
+      });
+    }
+
+    // Find user's cart
+    let cart = await Cart.findOne({ buyerId: req.user._id });
+    if (!cart) {
+      cart = new Cart({ buyerId: req.user._id, items: [] });
+    }
+
+    // If quantity is 0, remove the item entirely
+    if (qty === 0) {
+      cart.items = cart.items.filter(item => item.productId.toString() !== productId);
+      await cart.save();
+    } else {
+      // Verify product exists and check its stock
+      const product = await Product.findById(productId);
+      if (!product) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Product not found.'
+        });
+      }
+
+      if (product.status !== 'available' || product.stock < qty) {
+        return res.status(400).json({
+          status: 'error',
+          message: `Insufficient stock. Only ${product.stock} items are in stock.`
+        });
+      }
+
+      const itemIndex = cart.items.findIndex(item => item.productId.toString() === productId);
+      if (itemIndex > -1) {
+        cart.items[itemIndex].quantity = qty;
+        cart.items[itemIndex].priceAtAdd = product.price;
+      } else {
+        cart.items.push({ productId, priceAtAdd: product.price, quantity: qty });
+      }
+
+      await cart.save();
+    }
+
+    // Fetch updated cart populated with product details to return
+    const updatedCart = await Cart.findOne({ buyerId: req.user._id }).populate({
+      path: 'items.productId',
+      select: 'title price images category status stock'
+    });
+
+    const cartTotal = updatedCart ? updatedCart.items.reduce((total, item) => {
+      const price = item.productId ? item.productId.price : 0;
+      return total + (price * item.quantity);
+    }, 0) : 0;
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Cart quantity updated successfully',
+      data: {
+        cart: {
+          _id: updatedCart ? updatedCart._id : null,
+          buyerId: req.user._id,
+          items: updatedCart ? updatedCart.items : [],
+          cartTotal
+        }
       }
     });
   } catch (error) {

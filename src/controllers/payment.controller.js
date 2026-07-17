@@ -259,10 +259,11 @@ exports.verifyPayment = async (req, res, next) => {
 
       await order.save();
 
-      // Clear user's Cart
+      // Clear only checked-out items from user's Cart (leaving unselected items untouched)
       const cart = await Cart.findOne({ buyerId: req.user._id });
       if (cart) {
-        cart.items = [];
+        const orderProductIds = order.items.map(item => item.productId.toString());
+        cart.items = cart.items.filter(item => !orderProductIds.includes(item.productId.toString()));
         await cart.save();
       }
 
