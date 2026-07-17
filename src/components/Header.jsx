@@ -317,6 +317,15 @@ export default function Header() {
                           My Inventory
                         </button>
                         <button 
+                          onClick={() => {
+                            setDropdownOpen(false);
+                            navigate('/seller/orders');
+                          }}
+                          className="w-full text-left px-4 py-2 text-xs hover:bg-[#F7F3EF] transition-colors flex items-center gap-2 cursor-pointer font-medium"
+                        >
+                          Orders List
+                        </button>
+                        <button 
                           onClick={handleLogout}
                           className="w-full text-left px-4 py-2 text-xs text-[#E53E3E] hover:bg-[#FFF5F5] transition-colors flex items-center gap-2 border-t border-[#CBAD8D]/10 mt-2 pt-2 cursor-pointer font-medium"
                         >
@@ -355,6 +364,9 @@ export default function Header() {
             </Link>
             <Link to="/seller/dashboard?tab=negotiations" className={`hover:text-[#CBAD8D] transition-colors ${location.search.includes('tab=negotiations') ? 'text-[#3A2D28] font-bold border-b border-[#3A2D28]' : ''}`}>
               Negotiations
+            </Link>
+            <Link to="/seller/orders" className={`hover:text-[#CBAD8D] transition-colors ${location.pathname === '/seller/orders' ? 'text-[#3A2D28] font-bold border-b border-[#3A2D28]' : ''}`}>
+              Orders
             </Link>
             <Link to="/seller/dashboard?tab=messages" className={`hover:text-[#CBAD8D] transition-colors ${location.search.includes('tab=messages') ? 'text-[#3A2D28] font-bold border-b border-[#3A2D28]' : ''}`}>
               Messages

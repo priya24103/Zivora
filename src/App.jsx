@@ -8,6 +8,7 @@ import MyOrders from './pages/MyOrders';
 import VerifyEmail from './pages/VerifyEmail';
 import AdminKYC from './pages/admin/AdminKYC';
 import SellerDashboard from './pages/SellerDashboard';
+import SellerOrders from './pages/SellerOrders';
 import AddProduct from './pages/AddProduct';
 import VerificationPending from './pages/VerificationPending';
 import CreateRfq from './pages/CreateRfq';
@@ -63,6 +64,7 @@ function AppContent() {
           <Route path="/my-orders" element={<MyOrders />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/seller/dashboard" element={<SellerDashboard />} />
+          <Route path="/seller/orders" element={<SellerOrders />} />
           <Route path="/seller/add-product" element={<AddProduct />} />
           <Route path="/rfq/create" element={<CreateRfq />} />
           <Route path="/verification-pending" element={<VerificationPending />} />
