@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 
 const API_BASE = 'http://localhost:2409/api';
+import HeartButton from '../components/HeartButton';
 
 const SHAPES = ['Round', 'Princess', 'Cushion', 'Emerald', 'Oval', 'Radiant', 'Pear', 'Marquise', 'Asscher', 'Heart'];
 const METALS = [
@@ -37,6 +38,51 @@ export default function Products() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const [wishlistProductIds, setWishlistProductIds] = useState(new Set());
+
+  const fetchWishlist = async () => {
+    const token = localStorage.getItem('zivora_token');
+    if (!token) return;
+    try {
+      const response = await axios.get(`${API_BASE}/wishlist`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.status === 'success') {
+        const items = response.data.data.wishlist.items || [];
+        setWishlistProductIds(new Set(items.map(item => item.productId?._id || item.productId)));
+      }
+    } catch (e) {
+      console.error('Error fetching wishlist:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchWishlist();
+  }, []);
+
+  const handleToggleWishlist = async (productId) => {
+    const token = localStorage.getItem('zivora_token');
+    if (!token) {
+      alert('Please log in to save items to your wishlist.');
+      return;
+    }
+
+    try {
+      const response = await axios.post(`${API_BASE}/wishlist/toggle`, {
+        productId
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.status === 'success') {
+        const items = response.data.data.wishlist.items || [];
+        setWishlistProductIds(new Set(items.map(item => item.productId?._id || item.productId)));
+      }
+    } catch (err) {
+      console.error('Error toggling wishlist:', err);
+    }
+  };
   
   // Pagination metadata
   const [page, setPage] = useState(1);
@@ -636,10 +682,17 @@ export default function Products() {
                           {product.category}
                         </span>
 
+                        {/* Wishlist Heart Toggle */}
+                        <HeartButton
+                          isFavorited={wishlistProductIds.has(product._id)}
+                          onClick={() => handleToggleWishlist(product._id)}
+                          className="absolute top-3 right-3 z-10"
+                        />
+
                         {/* Yellow M symbol for Memo holds */}
                         {product.status === 'on_memo' && (
                           <span 
-                            className="absolute top-3 right-3 w-5 h-5 rounded-full bg-yellow-400 text-yellow-950 flex items-center justify-center text-[10px] font-black shadow-md border border-yellow-300 animate-pulse"
+                            className="absolute top-3 right-12 w-5 h-5 rounded-full bg-yellow-400 text-yellow-950 flex items-center justify-center text-[10px] font-black shadow-md border border-yellow-300 animate-pulse"
                             title="On Memo Hold"
                           >
                             M

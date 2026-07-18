@@ -22,6 +22,7 @@ import CreateAuction from './pages/CreateAuction';
 import Auctions from './pages/Auctions';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import Wishlist from './pages/Wishlist';
 import { CartProvider } from './context/CartContext';
 
 // Admin imports
@@ -76,6 +77,7 @@ function AppContent() {
           <Route path="/auctions/:id" element={<LiveAuctionRoom />} />
           <Route path="/auctions" element={<Auctions />} />
           <Route path="/seller/create-auction" element={<CreateAuction />} />
+          <Route path="/wishlist" element={<Wishlist />} />
 
           {/* Admin routes */}
           <Route path="/admin/login" element={<AdminLogin />} />

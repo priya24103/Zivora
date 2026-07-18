@@ -458,7 +458,10 @@ export default function Header() {
             <button className="hover:text-[#3A2D28] transition-colors relative p-1 cursor-pointer">
               <MessageSquare className="w-[18px] h-[18px]" />
             </button>
-            <button className="hover:text-[#3A2D28] transition-colors relative p-1 cursor-pointer">
+            <button 
+              onClick={() => navigate('/wishlist')}
+              className="hover:text-[#3A2D28] transition-colors relative p-1 cursor-pointer"
+            >
               <Heart className="w-[18px] h-[18px]" />
             </button>
             <button 

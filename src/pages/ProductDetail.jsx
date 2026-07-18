@@ -18,6 +18,7 @@ import {
   Handshake
 } from 'lucide-react';
 import MakeOfferModal from '../components/MakeOfferModal';
+import HeartButton from '../components/HeartButton';
 
 const API_BASE = 'http://localhost:2409/api';
 
@@ -65,6 +66,54 @@ export default function ProductDetail() {
 
     if (id) fetchProduct();
   }, [id]);
+
+  const [isFavorited, setIsFavorited] = useState(false);
+
+  // Check if item is in wishlist on load
+  useEffect(() => {
+    const checkWishlist = async () => {
+      const token = localStorage.getItem('zivora_token');
+      if (!token) return;
+      try {
+        const response = await axios.get(`${API_BASE}/wishlist`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (response.data.status === 'success') {
+          const items = response.data.data.wishlist.items || [];
+          const favorited = items.some(item => item.productId?._id === id || item.productId === id);
+          setIsFavorited(favorited);
+        }
+      } catch (e) {
+        console.error('Error checking wishlist status:', e);
+      }
+    };
+
+    if (id) checkWishlist();
+  }, [id]);
+
+  const handleToggleWishlist = async () => {
+    const token = localStorage.getItem('zivora_token');
+    if (!token) {
+      alert('Please log in to save items to your wishlist.');
+      return;
+    }
+
+    try {
+      const response = await axios.post(`${API_BASE}/wishlist/toggle`, {
+        productId: id
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.status === 'success') {
+        const items = response.data.data.wishlist.items || [];
+        const favorited = items.some(item => item.productId?._id === id || item.productId === id);
+        setIsFavorited(favorited);
+      }
+    } catch (err) {
+      console.error('Error toggling wishlist:', err);
+    }
+  };
 
   const handleAddToCart = async () => {
     try {
@@ -213,10 +262,17 @@ export default function ProductDetail() {
                 {product.category}
               </span>
 
+              {/* Heart Wishlist Toggle */}
+              <HeartButton
+                isFavorited={isFavorited}
+                onClick={handleToggleWishlist}
+                className="absolute top-4 right-4 z-10"
+              />
+
               {/* Yellow M symbol for Memo holds */}
               {product.status === 'on_memo' && (
                 <span 
-                  className="absolute top-4 right-4 w-6 h-6 rounded-full bg-yellow-400 text-yellow-950 flex items-center justify-center text-xs font-black shadow-md border border-yellow-300 animate-pulse animate-duration-1000"
+                  className="absolute top-4 right-16 w-6 h-6 rounded-full bg-yellow-400 text-yellow-950 flex items-center justify-center text-xs font-black shadow-md border border-yellow-300 animate-pulse animate-duration-1000"
                   title="On Memo Hold"
                 >
                   M
