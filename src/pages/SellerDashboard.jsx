@@ -31,12 +31,14 @@ import {
   Calendar,
   ChevronLeft,
   ExternalLink,
-  Handshake
+  Handshake,
+  Edit2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import OfferInbox from '../components/OfferInbox';
 import { io } from 'socket.io-client';
+import EditListingDrawer from '../components/EditListingDrawer';
 
 export default function SellerDashboard() {
   const navigate = useNavigate();
@@ -94,6 +96,9 @@ export default function SellerDashboard() {
   const [selectedAuctionItem, setSelectedAuctionItem] = useState(null);
   const [auctionStartPrice, setAuctionStartPrice] = useState('');
   const [auctionDuration, setAuctionDuration] = useState('24h');
+  
+  const [showEditDrawer, setShowEditDrawer] = useState(false);
+  const [selectedListing, setSelectedListing] = useState(null);
   
   const [showRfqModal, setShowRfqModal] = useState(false);
   const [selectedRfq, setSelectedRfq] = useState(null);
@@ -1080,6 +1085,27 @@ export default function SellerDashboard() {
                                     <option value="sold">Mark Sold</option>
                                   </select>
 
+                                  {/* Edit Listing */}
+                                  <button
+                                    onClick={() => {
+                                      if (item.listingType === 'auction_only') {
+                                        const auc = auctions.find(a => a.productId?._id === item._id || a.productId === item._id);
+                                        if (auc) {
+                                          setSelectedListing({ ...auc, isAuction: true });
+                                        } else {
+                                          setSelectedListing({ ...item, isProduct: true });
+                                        }
+                                      } else {
+                                        setSelectedListing({ ...item, isProduct: true });
+                                      }
+                                      setShowEditDrawer(true);
+                                    }}
+                                    className="p-1.5 text-xs font-semibold text-[#A48374] hover:text-[#3A2D28] border border-[#CBAD8D]/30 hover:bg-[#F7F3EF] rounded-md transition-colors"
+                                    title="Edit Listing"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+
                                   {/* Launch auction button */}
                                   {item.status === 'available' && (
                                     <button
@@ -1265,12 +1291,24 @@ export default function SellerDashboard() {
                               </div>
                             </div>
 
-                            <button 
-                              onClick={() => setSelectedManageAuction(auc)}
-                              className="w-full py-3 bg-[#FAF8F6] hover:bg-[#A48374] hover:text-white border border-[#CBAD8D]/30 hover:border-transparent text-[10px] font-bold uppercase tracking-widest text-[#A48374] rounded-full transition-all cursor-pointer shadow-xs"
-                            >
-                              Manage Auction
-                            </button>
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={() => setSelectedManageAuction(auc)}
+                                className="flex-1 py-3 bg-[#FAF8F6] hover:bg-[#A48374] hover:text-white border border-[#CBAD8D]/30 hover:border-transparent text-[10px] font-bold uppercase tracking-widest text-[#A48374] rounded-full transition-all cursor-pointer shadow-xs"
+                              >
+                                Manage Auction
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedListing({ ...auc, isAuction: true });
+                                  setShowEditDrawer(true);
+                                }}
+                                className="px-3.5 py-3 bg-[#FAF8F6] hover:bg-[#A48374] hover:text-white border border-[#CBAD8D]/30 hover:border-transparent text-[#A48374] rounded-full transition-all cursor-pointer shadow-xs flex items-center justify-center"
+                                title="Edit Auction Settings"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );
@@ -1932,6 +1970,17 @@ export default function SellerDashboard() {
             </div>
           </div>
         )}
+
+        {/* Edit Listing Side Drawer */}
+        <EditListingDrawer
+          isOpen={showEditDrawer}
+          onClose={() => {
+            setShowEditDrawer(false);
+            setSelectedListing(null);
+          }}
+          selectedListing={selectedListing}
+          onSaveSuccess={fetchDashboardData}
+        />
 
       </div>
     </div>
