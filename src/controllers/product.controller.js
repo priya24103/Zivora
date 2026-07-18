@@ -313,4 +313,72 @@ exports.deleteProduct = async (req, res, next) => {
   }
 };
 
+// @desc    Update a product listing
+// @route   PUT /api/seller/products/:id
+// @access  Private (Seller only)
+exports.updateProduct = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Product not found'
+      });
+    }
+
+    const product = await Product.findById(id);
+
+    if (!product) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Product not found'
+      });
+    }
+
+    // Verify ownership
+    if (product.sellerId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Access denied. You do not own this product.'
+      });
+    }
+
+    // Check if listingType is being modified
+    if (req.body.listingType && req.body.listingType !== product.listingType) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Cannot change listing type once created.'
+      });
+    }
+
+    // Update standard fields (title, description, price, stock)
+    const allowedFields = ['title', 'description', 'price', 'stock'];
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        product[field] = req.body[field];
+      }
+    });
+
+    const updatedProduct = await product.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Product updated successfully',
+      data: {
+        product: updatedProduct
+      }
+    });
+  } catch (error) {
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        status: 'error',
+        message: messages.join(', ')
+      });
+    }
+    next(error);
+  }
+};
+
 

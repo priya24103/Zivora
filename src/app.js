@@ -16,6 +16,7 @@ const paymentRoutes = require('./routes/payment.routes');
 const offerRoutes = require('./routes/offer.routes');
 const adminRoutes = require('./routes/admin.routes');
 const sellerOrderRoutes = require('./routes/sellerOrder.routes');
+const sellerRoutes = require('./routes/seller.routes');
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/offers', offerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/seller/orders', sellerOrderRoutes);
+app.use('/api/seller', sellerRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
