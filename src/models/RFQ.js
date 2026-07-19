@@ -27,6 +27,10 @@ const quoteSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true
+  },
+  accepted: {
+    type: Boolean,
+    default: false
   }
 }, { 
   timestamps: true // Automatically tracks when the bid was placed (useful for tie-breakers)
@@ -75,7 +79,7 @@ const rfqSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'submitted', 'open', 'closed', 'awarded'], // 'open' accepts bids, 'awarded' means winner chosen
+    enum: ['pending', 'submitted', 'open', 'closed', 'awarded', 'completed'], // 'open' accepts bids, 'awarded' means winner chosen
     default: 'pending'
   },
   winnerSeller: { 

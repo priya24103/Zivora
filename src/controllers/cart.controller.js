@@ -2,6 +2,38 @@ const Cart = require('../models/Cart');
 const { Product } = require('../models/Product');
 const Auction = require('../models/Auction');
 const Order = require('../models/Order');
+const RFQ = require('../models/RFQ');
+
+// Helper to calculate price overriding with completed auction or accepted RFQ quote
+const getProductPriceForUser = async (product, userId) => {
+  if (!product) return 0;
+  
+  const completedAuction = await Auction.findOne({
+    productId: product._id,
+    highestBidder: userId,
+    status: 'completed'
+  });
+
+  if (completedAuction) {
+    return completedAuction.currentHighestBid;
+  }
+
+  const acceptedRfq = await RFQ.findOne({
+    buyerId: userId,
+    status: 'completed',
+    "quotes.productId": product._id,
+    "quotes.accepted": true
+  });
+
+  if (acceptedRfq) {
+    const acceptedQuote = acceptedRfq.quotes.find(q => q.productId.toString() === product._id.toString() && q.accepted === true);
+    if (acceptedQuote) {
+      return acceptedQuote.quotePrice;
+    }
+  }
+
+  return product.price;
+};
 
 // @desc    Fetch the logged-in buyer's cart
 // @route   GET /api/cart
@@ -33,16 +65,10 @@ exports.getCart = async (req, res, next) => {
     let cartTotal = 0;
     for (const item of cart.items) {
       const product = item.productId;
-      const completedAuction = await Auction.findOne({
-        productId: product._id,
-        highestBidder: req.user._id,
-        status: 'completed'
-      });
-
-      if (completedAuction) {
-        product.price = completedAuction.currentHighestBid;
+      if (product) {
+        product.price = await getProductPriceForUser(product, req.user._id);
+        cartTotal += product.price * item.quantity;
       }
-      cartTotal += product.price * item.quantity;
     }
 
     res.status(200).json({
@@ -136,10 +162,14 @@ exports.addToCart = async (req, res, next) => {
       select: 'title price images category status stock'
     });
 
-    const cartTotal = updatedCart.items.reduce((total, item) => {
-      const price = item.productId ? item.productId.price : 0;
-      return total + (price * item.quantity);
-    }, 0);
+    let cartTotal = 0;
+    for (const item of updatedCart.items) {
+      const product = item.productId;
+      if (product) {
+        product.price = await getProductPriceForUser(product, req.user._id);
+        cartTotal += product.price * item.quantity;
+      }
+    }
 
     res.status(200).json({
       status: 'success',
@@ -182,10 +212,14 @@ exports.removeFromCart = async (req, res, next) => {
       select: 'title price images category status stock'
     });
 
-    const cartTotal = updatedCart.items.reduce((total, item) => {
-      const price = item.productId ? item.productId.price : 0;
-      return total + (price * item.quantity);
-    }, 0);
+    let cartTotal = 0;
+    for (const item of updatedCart.items) {
+      const product = item.productId;
+      if (product) {
+        product.price = await getProductPriceForUser(product, req.user._id);
+        cartTotal += product.price * item.quantity;
+      }
+    }
 
     res.status(200).json({
       status: 'success',
@@ -260,25 +294,42 @@ exports.checkout = async (req, res, next) => {
         });
       }
 
-      if (product.status !== 'available' || product.stock < item.quantity) {
-        return res.status(400).json({
-          status: 'error',
-          message: `Product "${product.title}" is out of stock or has insufficient stock`
-        });
+      // Check if product is available (allow if won auction or accepted RFQ)
+      const completedAuction = await Auction.findOne({
+        productId: product._id,
+        highestBidder: req.user._id,
+        status: 'completed'
+      });
+      const acceptedRfq = await RFQ.findOne({
+        buyerId: req.user._id,
+        status: 'completed',
+        "quotes.productId": product._id,
+        "quotes.accepted": true
+      });
+
+      if (!completedAuction && !acceptedRfq) {
+        if (product.status !== 'available' || product.stock < item.quantity) {
+          return res.status(400).json({
+            status: 'error',
+            message: `Product "${product.title}" is out of stock or has insufficient stock`
+          });
+        }
       }
 
       if (product.sellerId) {
         sellerIdsSet.add(product.sellerId.toString());
       }
 
+      const priceAtPurchase = await getProductPriceForUser(product, req.user._id);
+
       orderItems.push({
         productId: product._id,
         title: product.title,
-        priceAtPurchase: product.price,
+        priceAtPurchase,
         quantity: item.quantity
       });
 
-      totalAmount += product.price * item.quantity;
+      totalAmount += priceAtPurchase * item.quantity;
     }
 
     // 4. Generate placeholder shipping address since user will finalize it on checkout page
@@ -404,10 +455,16 @@ exports.updateQuantity = async (req, res, next) => {
       select: 'title price images category status stock'
     });
 
-    const cartTotal = updatedCart ? updatedCart.items.reduce((total, item) => {
-      const price = item.productId ? item.productId.price : 0;
-      return total + (price * item.quantity);
-    }, 0) : 0;
+    let cartTotal = 0;
+    if (updatedCart) {
+      for (const item of updatedCart.items) {
+        const product = item.productId;
+        if (product) {
+          product.price = await getProductPriceForUser(product, req.user._id);
+          cartTotal += product.price * item.quantity;
+        }
+      }
+    }
 
     res.status(200).json({
       status: 'success',

@@ -34,6 +34,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/auctions', auctionRoutes);
 app.use('/api/rfq', rfqRoutes);
+app.use('/api/rfqs', rfqRoutes);
 app.use('/api/conversations', conversationRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);

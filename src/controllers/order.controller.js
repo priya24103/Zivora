@@ -3,6 +3,7 @@ const Order = require('../models/Order');
 const { Product } = require('../models/Product');
 const Auction = require('../models/Auction');
 const PDFDocument = require('pdfkit');
+const RFQ = require('../models/RFQ');
 
 // @desc    Checkout and create a new order from buyer's cart
 // @route   POST /api/orders/checkout
@@ -57,7 +58,14 @@ exports.checkout = async (req, res, next) => {
         status: 'completed'
       });
 
-      if (!completedAuction) {
+      const acceptedRfq = await RFQ.findOne({
+        buyerId: req.user._id,
+        status: 'completed',
+        "quotes.productId": product._id,
+        "quotes.accepted": true
+      });
+
+      if (!completedAuction && !acceptedRfq) {
         if (product.status !== 'available' || product.stock < item.quantity) {
           return res.status(400).json({
             status: 'error',
@@ -87,7 +95,22 @@ exports.checkout = async (req, res, next) => {
         status: 'completed'
       });
 
-      const priceAtPurchase = completedAuction ? completedAuction.currentHighestBid : product.price;
+      const acceptedRfq = await RFQ.findOne({
+        buyerId: req.user._id,
+        status: 'completed',
+        "quotes.productId": product._id,
+        "quotes.accepted": true
+      });
+
+      let priceAtPurchase = product.price;
+      if (completedAuction) {
+        priceAtPurchase = completedAuction.currentHighestBid;
+      } else if (acceptedRfq) {
+        const acceptedQuote = acceptedRfq.quotes.find(q => q.productId.toString() === product._id.toString() && q.accepted === true);
+        if (acceptedQuote) {
+          priceAtPurchase = acceptedQuote.quotePrice;
+        }
+      }
 
       orderItems.push({
         productId: product._id,

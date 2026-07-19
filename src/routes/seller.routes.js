@@ -12,6 +12,9 @@ router.use(sellerGuard);
 // PUT /api/seller/products/:id - Update product details
 router.put('/products/:id', productController.updateProduct);
 
+// PUT /api/seller/products/:id/approve-memo - Approve memo request
+router.put('/products/:id/approve-memo', productController.approveMemo);
+
 // PUT /api/seller/auctions/:id - Update auction parameters
 router.put('/auctions/:id', auctionController.updateAuction);
 

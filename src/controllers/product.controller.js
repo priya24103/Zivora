@@ -80,7 +80,10 @@ exports.getSellerProducts = async (req, res, next) => {
     const sellerId = req.user._id;
 
     // Find all products listed by this seller, sorted by creation date
-    const products = await Product.find({ sellerId }).sort({ createdAt: -1 });
+    const products = await Product.find({ sellerId })
+      .populate('memoRequestedBy', 'name email')
+      .populate('memoHeldBy', 'name email')
+      .sort({ createdAt: -1 });
 
     res.status(200).json({
       status: 'success',
@@ -377,6 +380,120 @@ exports.updateProduct = async (req, res, next) => {
         message: messages.join(', ')
       });
     }
+    next(error);
+  }
+};
+
+// @desc    Request a 48-hour memo hold on a product
+// @route   POST /api/products/:id/request-memo
+// @access  Private (Buyer only)
+exports.requestMemo = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Product not found'
+      });
+    }
+
+    const product = await Product.findById(id);
+
+    if (!product) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Product not found'
+      });
+    }
+
+    // Check if product is available for memo request
+    if (product.status === 'sold' || product.status === 'memo' || product.status === 'on_memo') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Product is already sold or on memo'
+      });
+    }
+
+    // Check if user has already requested a memo
+    const buyerId = req.user._id;
+    if (product.memoRequestedBy.includes(buyerId)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'You have already requested a memo for this product'
+      });
+    }
+
+    // Push buyer ID to memoRequestedBy array
+    product.memoRequestedBy.push(buyerId);
+    await product.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Memo request submitted successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Approve a buyer's memo request for a product
+// @route   PUT /api/seller/products/:id/approve-memo
+// @access  Private (Seller only)
+exports.approveMemo = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { buyerId } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Product not found'
+      });
+    }
+
+    const product = await Product.findById(id);
+
+    if (!product) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Product not found'
+      });
+    }
+
+    // Verify ownership
+    if (product.sellerId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Access denied. You do not own this product.'
+      });
+    }
+
+    if (!buyerId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Buyer ID is required to approve memo'
+      });
+    }
+
+    // Set product memo states
+    product.status = 'memo';
+    product.memoHeldBy = buyerId;
+    product.memoExpiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // exactly 48 hours from now
+    
+    // Clear the memoRequestedBy array
+    product.memoRequestedBy = [];
+
+    const updatedProduct = await product.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Memo request approved successfully',
+      data: {
+        product: updatedProduct
+      }
+    });
+  } catch (error) {
     next(error);
   }
 };

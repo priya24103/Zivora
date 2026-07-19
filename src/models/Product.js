@@ -40,13 +40,26 @@ const ProductSchema = new mongoose.Schema({
   }],
   status: {
     type: String,
-    enum: ['available', 'on_memo', 'sold'], // Fixed values for order/memo workflows
+    enum: ['available', 'on_memo', 'sold', 'memo'], // Fixed values for order/memo workflows
     default: 'available'
   },
   listingType: {
     type: String,
     enum: ['direct_sale', 'auction_only'],
     default: 'direct_sale'
+  },
+  memoRequestedBy: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  memoHeldBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  memoExpiresAt: {
+    type: Date,
+    default: null
   }
 }, baseOptions);
 
