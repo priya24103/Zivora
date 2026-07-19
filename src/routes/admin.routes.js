@@ -9,6 +9,7 @@ router.post('/login', adminController.login);
 
 // Protected routes (admin authorization required)
 router.get('/stats', isAdmin, adminController.getStats);
+router.get('/analytics', isAdmin, adminController.getAnalytics);
 router.get('/users', isAdmin, adminController.getUsers);
 router.put('/users/:id/status', isAdmin, adminController.toggleUserStatus);
 router.get('/products', isAdmin, adminController.getProducts);
