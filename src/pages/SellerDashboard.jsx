@@ -101,6 +101,13 @@ export default function SellerDashboard() {
   const [selectedListing, setSelectedListing] = useState(null);
   
   const [showRfqModal, setShowRfqModal] = useState(false);
+  const [showMemoModal, setShowMemoModal] = useState(false);
+  const [selectedMemoProduct, setSelectedMemoProduct] = useState(null);
+  const [toastMessage, setToastMessage] = useState('');
+  const triggerToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 4000);
+  };
   const [selectedRfq, setSelectedRfq] = useState(null);
   const [rfqPriceQuote, setRfqPriceQuote] = useState('');
   const [rfqMessage, setRfqMessage] = useState('');
@@ -445,6 +452,26 @@ export default function SellerDashboard() {
     } catch (err) {
       console.error('Error updating status:', err);
       alert(err.response?.data?.message || 'Could not update product status.');
+    }
+  };
+
+  const handleApproveMemo = async (buyerId) => {
+    try {
+      const token = localStorage.getItem('zivora_token');
+      const response = await axios.put(`http://localhost:2409/api/seller/products/${selectedMemoProduct._id}/approve-memo`, {
+        buyerId
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.status === 'success') {
+        triggerToast('Memo hold approved successfully.');
+        setShowMemoModal(false);
+        setSelectedMemoProduct(null);
+        fetchDashboardData();
+      }
+    } catch (err) {
+      console.error('Error approving memo request:', err);
+      alert(err.response?.data?.message || 'Could not approve memo request.');
     }
   };
 
@@ -1029,6 +1056,7 @@ export default function SellerDashboard() {
                           const statusColors = {
                             available: { label: 'Available', bg: 'rgba(16,185,129,0.1)', color: '#10B981' },
                             on_memo: { label: 'On Memo', bg: 'rgba(203,173,141,0.25)', color: '#A48374' },
+                            memo: { label: 'On Memo', bg: 'rgba(203,173,141,0.25)', color: '#A48374' },
                             sold: { label: 'Sold', bg: '#F1EDE6', color: '#6B5549' }
                           };
                           const badge = statusColors[item.status] || { label: item.status, bg: '#F1EDE6', color: '#6B5549' };
@@ -1048,6 +1076,14 @@ export default function SellerDashboard() {
                                       : `${item.jewelryType} • ${item.metalType} • ${item.weightGrams}g`
                                     }
                                   </p>
+                                  {item.memoRequestedBy && item.memoRequestedBy.length > 0 && (
+                                    <div className="mt-1.5 flex items-center">
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-[#A48374]/15 text-[#3A2D28] text-[9px] font-bold uppercase tracking-widest rounded-full border border-[#A48374]/20 shadow-xs animate-pulse">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-[#A48374] inline-block" />
+                                        {item.memoRequestedBy.length} {item.memoRequestedBy.length === 1 ? 'Memo Request' : 'Memo Requests'}
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
                               </td>
                               {/* Price */}
@@ -1074,6 +1110,19 @@ export default function SellerDashboard() {
                               {/* Interactive Actions */}
                               <td className="py-4 text-right pr-2">
                                 <div className="inline-flex items-center gap-2">
+                                  {item.memoRequestedBy && item.memoRequestedBy.length > 0 && (
+                                    <button
+                                      onClick={() => {
+                                        setSelectedMemoProduct(item);
+                                        setShowMemoModal(true);
+                                      }}
+                                      className="px-3 py-1 bg-[#A48374] hover:bg-[#3A2D28] text-white text-[10px] font-bold uppercase tracking-wider rounded-full transition-colors cursor-pointer"
+                                      title="Review Memo Requests"
+                                    >
+                                      Review Memos
+                                    </button>
+                                  )}
+
                                   {/* Quick status cycle toggle */}
                                   <select 
                                     value={item.status}
@@ -1981,6 +2030,94 @@ export default function SellerDashboard() {
           selectedListing={selectedListing}
           onSaveSuccess={fetchDashboardData}
         />
+
+        {/* Review Memo Requests Modal */}
+        {showMemoModal && selectedMemoProduct && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            {/* Overlay */}
+            <div 
+              onClick={() => {
+                setShowMemoModal(false);
+                setSelectedMemoProduct(null);
+              }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm" 
+            />
+
+            {/* Modal Content */}
+            <div className="relative bg-[#F1EDE6] rounded-[32px] w-full max-w-lg p-6 md:p-10 border border-[#CBAD8D]/25 shadow-2xl z-10 animate-in zoom-in-95 duration-200">
+              <button 
+                onClick={() => {
+                  setShowMemoModal(false);
+                  setSelectedMemoProduct(null);
+                }}
+                className="absolute right-6 top-6 p-1.5 hover:bg-gray-200/50 rounded-full cursor-pointer text-[#3A2D28]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="text-center mb-6">
+                <span className="text-[9px] uppercase tracking-[0.25em] text-[#A48374] font-bold block mb-1">Approval Center</span>
+                <h3 className="font-serif text-2xl text-[#3A2D28]">Review Memo Requests</h3>
+                <p className="text-[11px] text-[#A48374] mt-1.5 max-w-sm mx-auto leading-relaxed">
+                  Approve a 48-hour memo hold for one of the buyers below. This will temporarily lock the item status to "On Memo" for 48 hours.
+                </p>
+              </div>
+
+              {/* Product Info Summary */}
+              <div className="bg-white p-4 rounded-2xl border border-[#CBAD8D]/20 flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 rounded-xl bg-[#F7F3EF] border border-[#E6DFD6] overflow-hidden flex-shrink-0 flex items-center justify-center text-[#A48374]">
+                  <Diamond className="w-5 h-5" />
+                </div>
+                <div>
+                  <h5 className="text-xs text-[#3A2D28] font-bold line-clamp-1">{selectedMemoProduct.title}</h5>
+                  <p className="text-[10px] text-[#A48374] font-medium mt-0.5">
+                    {selectedMemoProduct.category} • ₹{selectedMemoProduct.price.toLocaleString('en-IN')}
+                  </p>
+                </div>
+              </div>
+
+              {/* Buyers List */}
+              <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                {selectedMemoProduct.memoRequestedBy && selectedMemoProduct.memoRequestedBy.length > 0 ? (
+                  selectedMemoProduct.memoRequestedBy.map((buyer) => (
+                    <div 
+                      key={buyer._id || buyer.id} 
+                      className="bg-white p-4 rounded-xl border border-[#CBAD8D]/15 flex items-center justify-between gap-4 hover:shadow-xs transition-all"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-[#3A2D28] font-bold truncate">{buyer.name || 'Anonymous Buyer'}</p>
+                        <p className="text-[10px] text-[#A48374] truncate mt-0.5 select-all">{buyer.email || 'no-email@zivora.com'}</p>
+                      </div>
+                      <button
+                        onClick={() => handleApproveMemo(buyer._id || buyer.id)}
+                        className="px-4 py-2 bg-[#3A2D28] hover:bg-[#A48374] text-white text-[10px] font-bold uppercase tracking-wider rounded-full transition-all cursor-pointer shadow-xs whitespace-nowrap"
+                      >
+                        Approve Memo
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-center text-xs text-[#A48374] italic py-4">No pending memo requests found.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Luxury Toast Notification */}
+        <AnimatePresence>
+          {toastMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -50, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              className="fixed top-24 left-1/2 transform -translate-x-1/2 bg-[#3A2D28] text-white text-xs font-semibold uppercase tracking-widest px-6 py-3.5 rounded-full shadow-2xl z-[9999] border border-[#CBAD8D]/30 flex items-center gap-2"
+            >
+              <Check className="w-3.5 h-3.5 text-green-400" />
+              <span>{toastMessage}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
       </div>
     </div>

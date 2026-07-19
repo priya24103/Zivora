@@ -236,13 +236,19 @@ export default function BuyerDashboard() {
                 <p className="text-xl font-light text-[#3A2D28]">{myBids.length}</p>
                 <p className="text-[10px] uppercase tracking-wider text-[#A48374] mt-0.5">My Bids</p>
               </div>
-              <div className="bg-white rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-[#CBAD8D]/10 text-center">
-                <MessageSquare className="w-5 h-5 text-[#A48374] mb-2 mx-auto" />
+              <div 
+                onClick={() => navigate('/my-rfqs')}
+                className="bg-white rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-[#CBAD8D]/10 text-center cursor-pointer hover:border-[#A48374] transition-colors group"
+              >
+                <MessageSquare className="w-5 h-5 text-[#A48374] mb-2 mx-auto group-hover:scale-110 transition-transform" />
                 <p className="text-xl font-light text-[#3A2D28]">{rfqs.length}</p>
                 <p className="text-[10px] uppercase tracking-wider text-[#A48374] mt-0.5">Custom RFQs</p>
               </div>
-              <div className="bg-white rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-[#CBAD8D]/10 text-center">
-                <ShoppingBag className="w-5 h-5 text-[#A48374] mb-2 mx-auto" />
+              <div 
+                onClick={() => navigate('/my-orders')}
+                className="bg-white rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-[#CBAD8D]/10 text-center cursor-pointer hover:border-[#A48374] transition-colors group"
+              >
+                <ShoppingBag className="w-5 h-5 text-[#A48374] mb-2 mx-auto group-hover:scale-110 transition-transform" />
                 <p className="text-xl font-light text-[#3A2D28]">{orders.length}</p>
                 <p className="text-[10px] uppercase tracking-wider text-[#A48374] mt-0.5">My Orders</p>
               </div>
@@ -256,7 +262,7 @@ export default function BuyerDashboard() {
             <motion.div 
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
+              transition={{ delay: 0.15 }}
               className="bg-white rounded-3xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-[#CBAD8D]/10"
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-[#CBAD8D]/10 pb-4">
@@ -424,96 +430,6 @@ export default function BuyerDashboard() {
                 <h3 className="text-xl text-[#3A2D28]" style={{ fontFamily: 'Georgia, serif', fontWeight: 300 }}>Direct Negotiations</h3>
               </div>
               <OfferInbox />
-            </motion.div>
-
-            {/* My Orders Section */}
-            <motion.div 
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15 }}
-              className="bg-white rounded-3xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-[#CBAD8D]/10"
-            >
-              <div className="flex items-center gap-2 mb-6 border-b border-[#CBAD8D]/10 pb-4">
-                <ShoppingBag className="w-5 h-5 text-[#A48374]" />
-                <h3 className="text-xl text-[#3A2D28]" style={{ fontFamily: 'Georgia, serif', fontWeight: 300 }}>My Orders</h3>
-              </div>
-
-              {loading ? (
-                <div className="py-6 text-center text-xs text-[#A48374] italic">Loading order history...</div>
-              ) : orders.length === 0 ? (
-                <div className="py-8 text-center text-xs text-[#A48374] italic">You have not placed any orders yet.</div>
-              ) : (
-                <div className="space-y-4">
-                  {orders.map((order) => (
-                    <div 
-                      key={order._id} 
-                      className="p-5 rounded-2xl border border-[#CBAD8D]/10 bg-[#FBF9F6]/40 text-xs hover:border-[#CBAD8D]/30 transition-all"
-                    >
-                      <div className="flex flex-col sm:flex-row justify-between gap-4 mb-4 pb-3 border-b border-[#CBAD8D]/10">
-                        <div>
-                          <p className="font-semibold text-[#3A2D28]">Order ID: <span className="font-mono">{order._id}</span></p>
-                          <p className="text-[10px] text-[#A48374] mt-0.5">Placed on {new Date(order.createdAt).toLocaleDateString()}</p>
-                        </div>
-                        <div className="text-right sm:text-right">
-                          <p className="font-bold text-sm text-[#3A2D28]">₹{order.totalAmount.toLocaleString('en-IN')}</p>
-                        </div>
-                      </div>
-
-                      {/* Items */}
-                      <div className="space-y-2 mb-4">
-                        {order.items.map((item, idx) => (
-                          <div key={idx} className="flex justify-between items-center text-[#3A2D28]">
-                            <span>{item.title} (x{item.quantity})</span>
-                            <span className="font-semibold">₹{(item.priceAtPurchase * item.quantity).toLocaleString('en-IN')}</span>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Status Badges */}
-                      <div className="flex flex-wrap gap-2 items-center justify-between mt-3 pt-3 border-t border-[#CBAD8D]/5">
-                        <div className="flex gap-2">
-                          <span 
-                            className="px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider"
-                            style={{ 
-                              backgroundColor: order.orderStatus === 'cancelled' ? 'rgba(239,68,68,0.1)' : order.paymentStatus === 'paid' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)',
-                              color: order.orderStatus === 'cancelled' ? '#EF4444' : order.paymentStatus === 'paid' ? '#10B981' : '#F59E0B'
-                            }}
-                          >
-                            Payment: {order.paymentStatus}
-                          </span>
-                          <span 
-                            className="px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider"
-                            style={{ 
-                              backgroundColor: order.orderStatus === 'delivered' ? 'rgba(16,185,129,0.1)' : order.orderStatus === 'cancelled' ? 'rgba(239,68,68,0.1)' : 'rgba(164,131,116,0.15)',
-                              color: order.orderStatus === 'delivered' ? '#10B981' : order.orderStatus === 'cancelled' ? '#EF4444' : '#A48374'
-                            }}
-                          >
-                            Status: {order.orderStatus}
-                          </span>
-                        </div>
-                        <span className="text-[10px] text-[#A48374] font-medium">Deliver to: {order.shippingAddress?.fullName}</span>
-                      </div>
-
-                      {order.paymentStatus === 'pending' && order.orderStatus !== 'cancelled' && (
-                        <div className="flex gap-3 justify-end mt-4 pt-3 border-t border-[#CBAD8D]/5">
-                          <button
-                            onClick={() => handleCancelOrder(order._id)}
-                            className="px-4 py-2 border border-red-200 hover:bg-red-50 text-red-500 rounded-full text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors"
-                          >
-                            Cancel Order
-                          </button>
-                          <button
-                            onClick={() => navigate(`/checkout/${order._id}`)}
-                            className="px-5 py-2 bg-[#3A2D28] text-white hover:bg-[#A48374] rounded-full text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors"
-                          >
-                            Pay Now
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
             </motion.div>
 
             {/* Custom Diamond Quote Requests (RFQs) */}

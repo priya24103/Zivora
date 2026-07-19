@@ -23,6 +23,7 @@ import Auctions from './pages/Auctions';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import Wishlist from './pages/Wishlist';
+import MyRFQs from './pages/MyRFQs';
 import { CartProvider } from './context/CartContext';
 
 // Admin imports
@@ -78,6 +79,7 @@ function AppContent() {
           <Route path="/auctions" element={<Auctions />} />
           <Route path="/seller/create-auction" element={<CreateAuction />} />
           <Route path="/wishlist" element={<Wishlist />} />
+          <Route path="/my-rfqs" element={<MyRFQs />} />
 
           {/* Admin routes */}
           <Route path="/admin/login" element={<AdminLogin />} />

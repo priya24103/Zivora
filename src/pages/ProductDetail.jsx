@@ -15,8 +15,10 @@ import {
   Calendar,
   Send,
   X,
-  Handshake
+  Handshake,
+  Clock
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import MakeOfferModal from '../components/MakeOfferModal';
 import HeartButton from '../components/HeartButton';
 
@@ -39,6 +41,11 @@ export default function ProductDetail() {
   const [inquirySending, setInquirySending] = useState(false);
   const [inquirySuccess, setInquirySuccess] = useState(false);
   const [offerModalOpen, setOfferModalOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const triggerToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 4000);
+  };
 
   // Fetch product detail
   useEffect(() => {
@@ -138,6 +145,32 @@ export default function ProductDetail() {
     } catch (err) {
       console.error(err);
       alert(err.response?.data?.message || 'Could not add item to cart');
+    }
+  };
+
+  const loggedInUser = JSON.parse(localStorage.getItem('zivora_user')) || {};
+  const isRequestedByMe = product?.memoRequestedBy?.includes(loggedInUser._id || loggedInUser.id);
+
+  const handleMemoRequest = async () => {
+    const token = localStorage.getItem('zivora_token');
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+    try {
+      const response = await axios.post(`${API_BASE}/products/${product._id}/request-memo`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.status === 'success') {
+        setProduct(prev => ({
+          ...prev,
+          memoRequestedBy: [...(prev.memoRequestedBy || []), loggedInUser._id]
+        }));
+        triggerToast('Memo request submitted successfully.');
+      }
+    } catch (err) {
+      console.error('Memo request error:', err);
+      alert(err.response?.data?.message || 'Could not request memo');
     }
   };
 
@@ -470,6 +503,21 @@ export default function ProductDetail() {
                   )}
                 </button>
 
+                {product.status !== 'memo' && product.status !== 'on_memo' && product.status !== 'sold' && (
+                  <button
+                    onClick={handleMemoRequest}
+                    disabled={isRequestedByMe}
+                    className={`flex-1 py-4 rounded-full text-xs font-semibold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer border ${
+                      isRequestedByMe
+                        ? 'bg-[#FAF8F6] border-[#E6DFD6] text-gray-400 cursor-not-allowed'
+                        : 'border-[#A48374] text-[#A48374] hover:bg-[#F7F3EF] bg-white'
+                    }`}
+                  >
+                    <Clock className="w-4 h-4" />
+                    {isRequestedByMe ? 'Memo Requested (Pending)' : 'Request 48h Memo'}
+                  </button>
+                )}
+
                 <button 
                   onClick={() => setOfferModalOpen(true)}
                   disabled={product.stock <= 0}
@@ -599,6 +647,21 @@ export default function ProductDetail() {
         onClose={() => setOfferModalOpen(false)}
         product={product}
       />
+
+      {/* Luxury Toast Notification */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-24 left-1/2 transform -translate-x-1/2 bg-[#3A2D28] text-white text-xs font-semibold uppercase tracking-widest px-6 py-3.5 rounded-full shadow-2xl z-[9999] border border-[#CBAD8D]/30 flex items-center gap-2"
+          >
+            <Clock className="w-3.5 h-3.5 text-[#CBAD8D]" />
+            <span>{toastMessage}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );
