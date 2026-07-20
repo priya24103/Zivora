@@ -187,10 +187,9 @@ export default function ProductDetail() {
         return;
       }
 
-      // Check if conversation endpoints exist and send message
-      // We will hit the conversations/send endpoint or fallback gracefully
+      const recipientId = product.sellerId?._id || product.sellerId;
       const payload = {
-        recipientId: product.sellerId?._id || product.sellerId,
+        recipientId,
         text: `Inquiry regarding Product: ${product.title} (ID: ${product._id}). Message: ${inquiryMessage}`
       };
 
@@ -203,7 +202,13 @@ export default function ProductDetail() {
       setTimeout(() => {
         setInquirySuccess(false);
         setInquiryModalOpen(false);
-      }, 3000);
+        navigate('/messages', { 
+          state: { 
+            recipientId, 
+            recipientName: product.sellerId?.name || 'Seller' 
+          } 
+        });
+      }, 1200);
     } catch (err) {
       console.error(err);
       alert('Could not submit inquiry. Ensure you are signed in as a buyer.');

@@ -230,19 +230,22 @@ export default function BuyerDashboard() {
             </motion.div>
 
             {/* Quick Metrics */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-white rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-[#CBAD8D]/10 text-center">
-                <Gavel className="w-5 h-5 text-[#A48374] mb-2 mx-auto" />
-                <p className="text-xl font-light text-[#3A2D28]">{myBids.length}</p>
-                <p className="text-[10px] uppercase tracking-wider text-[#A48374] mt-0.5">My Bids</p>
-              </div>
+            <div className="grid grid-cols-3 gap-3">
               <div 
                 onClick={() => navigate('/my-rfqs')}
                 className="bg-white rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-[#CBAD8D]/10 text-center cursor-pointer hover:border-[#A48374] transition-colors group"
               >
                 <MessageSquare className="w-5 h-5 text-[#A48374] mb-2 mx-auto group-hover:scale-110 transition-transform" />
                 <p className="text-xl font-light text-[#3A2D28]">{rfqs.length}</p>
-                <p className="text-[10px] uppercase tracking-wider text-[#A48374] mt-0.5">Custom RFQs</p>
+                <p className="text-[10px] uppercase tracking-wider text-[#A48374] mt-0.5">My RFQs</p>
+              </div>
+              <div 
+                onClick={() => navigate('/messages')}
+                className="bg-white rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-[#CBAD8D]/10 text-center cursor-pointer hover:border-[#A48374] transition-colors group"
+              >
+                <MessageSquare className="w-5 h-5 text-[#A48374] mb-2 mx-auto group-hover:scale-110 transition-transform" />
+                <p className="text-xl font-light text-[#3A2D28]">Inbox</p>
+                <p className="text-[10px] uppercase tracking-wider text-[#A48374] mt-0.5">Messages</p>
               </div>
               <div 
                 onClick={() => navigate('/my-orders')}
@@ -250,7 +253,7 @@ export default function BuyerDashboard() {
               >
                 <ShoppingBag className="w-5 h-5 text-[#A48374] mb-2 mx-auto group-hover:scale-110 transition-transform" />
                 <p className="text-xl font-light text-[#3A2D28]">{orders.length}</p>
-                <p className="text-[10px] uppercase tracking-wider text-[#A48374] mt-0.5">My Orders</p>
+                <p className="text-[10px] uppercase tracking-wider text-[#A48374] mt-0.5">Orders</p>
               </div>
             </div>
           </div>

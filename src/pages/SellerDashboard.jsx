@@ -39,6 +39,7 @@ import axios from 'axios';
 import OfferInbox from '../components/OfferInbox';
 import { io } from 'socket.io-client';
 import EditListingDrawer from '../components/EditListingDrawer';
+import Messages from './Messages';
 
 export default function SellerDashboard() {
   const navigate = useNavigate();
@@ -1682,112 +1683,8 @@ export default function SellerDashboard() {
 
             {/* 5. MESSAGES TAB */}
             {currentTab === 'messages' && (
-              <div className="bg-white rounded-[28px] border border-[#CBAD8D]/15 shadow-sm overflow-hidden flex flex-col md:flex-row h-[600px]">
-                
-                {/* Conversations List */}
-                <div className="w-full md:w-80 border-r border-[#CBAD8D]/10 flex flex-col">
-                  <div className="p-4 border-b border-[#CBAD8D]/10">
-                    <div className="relative">
-                      <Search className="absolute left-3.5 w-3.5 h-3.5 text-[#A48374]" />
-                      <input 
-                        type="text" 
-                        placeholder="Search chats..." 
-                        className="w-full pl-9 pr-4 py-2 border border-[#CBAD8D]/15 rounded-full text-xs focus:outline-none bg-[#F7F3EF]/30"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex-1 overflow-y-auto divide-y divide-[#CBAD8D]/5">
-                    {conversations.map(c => (
-                      <button
-                        key={c.id}
-                        onClick={() => setActiveConversationId(c.id)}
-                        className={`w-full p-4 text-left flex items-start gap-3 transition-colors cursor-pointer ${activeConversationId === c.id ? 'bg-[#F7F3EF]/50' : 'hover:bg-[#FBF9F6]'}`}
-                      >
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-semibold uppercase flex-shrink-0" style={{ background: 'linear-gradient(135deg, #3A2D28, #A48374)' }}>
-                          {c.name[0]}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-baseline mb-0.5">
-                            <h4 className="font-bold text-xs text-[#3A2D28] truncate">{c.name}</h4>
-                            <span className="text-[9px] text-[#CBAD8D] font-semibold">{c.time}</span>
-                          </div>
-                          <p className={`text-[10px] truncate ${c.unread && c.id !== activeConversationId ? 'font-bold text-[#3A2D28]' : 'text-[#A48374]'}`}>
-                            {c.lastMsg}
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Active Chat Window */}
-                <div className="flex-1 flex flex-col bg-[#FBF9F6]/50">
-                  {activeConv ? (
-                    <>
-                      {/* Active Contact Header */}
-                      <div className="p-4 border-b border-[#CBAD8D]/10 bg-white flex justify-between items-center">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-semibold uppercase" style={{ background: 'linear-gradient(135deg, #3A2D28, #A48374)' }}>
-                            {activeConv.name[0]}
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-xs text-[#3A2D28]">{activeConv.name}</h4>
-                            <span className="text-[9px] text-green-600 font-semibold uppercase tracking-wider flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Online
-                            </span>
-                          </div>
-                        </div>
-                        <span className="text-[10px] text-[#A48374] font-medium">B2B Chat Link</span>
-                      </div>
-
-                      {/* Chat Messages Log */}
-                      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                        {activeConv.messages.map((m, idx) => (
-                          <div 
-                            key={idx} 
-                            className={`flex ${m.sender === 'seller' ? 'justify-end' : 'justify-start'}`}
-                          >
-                            <div 
-                              className={`max-w-[70%] p-3.5 rounded-2xl text-xs leading-relaxed ${m.sender === 'seller' ? 'bg-[#3A2D28] text-white rounded-tr-none' : 'bg-white text-[#3A2D28] border border-[#CBAD8D]/10 rounded-tl-none'}`}
-                            >
-                              <p>{m.text}</p>
-                            </div>
-                          </div>
-                        ))}
-                        {isTyping && (
-                          <div className="flex justify-start">
-                            <div className="bg-white border border-[#CBAD8D]/10 p-3 rounded-2xl rounded-tl-none text-xs text-[#A48374] italic">
-                              {activeConv.name} is typing...
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Message Input Form */}
-                      <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-[#CBAD8D]/10 flex gap-2">
-                        <input
-                          type="text"
-                          value={replyText}
-                          onChange={(e) => setReplyText(e.target.value)}
-                          placeholder="Type your message details here..."
-                          className="flex-1 px-4 py-3 border border-[#CBAD8D]/15 rounded-full text-xs focus:outline-none focus:border-[#A48374] bg-[#F7F3EF]/30"
-                        />
-                        <button
-                          type="submit"
-                          className="p-3 bg-[#3A2D28] hover:bg-[#A48374] text-white rounded-full transition-colors flex items-center justify-center cursor-pointer shadow-sm"
-                        >
-                          <Send className="w-4 h-4" />
-                        </button>
-                      </form>
-                    </>
-                  ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-[#A48374] italic">
-                      <MessageSquare className="w-10 h-10 mb-2 opacity-50" />
-                      <p className="text-xs">Select a buyer thread to start negotiating deals.</p>
-                    </div>
-                  )}
-                </div>
-
+              <div className="w-full">
+                <Messages />
               </div>
             )}
 

@@ -207,66 +207,12 @@ export default function Header() {
             <div className="flex items-center gap-4 text-[#A48374]">
               {/* Messages button */}
               <button 
-                onClick={() => navigate('/seller/dashboard?tab=messages')}
+                onClick={() => navigate('/messages')}
                 className="hover:text-[#3A2D28] transition-colors relative p-1 cursor-pointer"
-                title="Seller Messages"
+                title="Messages & Inquiries"
               >
                 <MessageSquare className="w-[18px] h-[18px]" />
               </button>
-
-              {/* Notification Bell */}
-              <div className="relative">
-                <button 
-                  onClick={() => setNotificationsOpen(!notificationsOpen)}
-                  className="hover:text-[#3A2D28] transition-colors relative p-1 cursor-pointer"
-                  title="Notifications"
-                >
-                  <Bell className="w-[18px] h-[18px]" />
-                  {unreadCount > 0 && (
-                    <span 
-                      className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[8px] font-bold text-white flex items-center justify-center animate-pulse"
-                      style={{ backgroundColor: '#3A2D28' }}
-                    >
-                      {unreadCount}
-                    </span>
-                  )}
-                </button>
-
-                {/* Notifications Dropdown */}
-                {notificationsOpen && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setNotificationsOpen(false)} />
-                    <div className="absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-xl border border-[#CBAD8D]/15 py-4 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                      <div className="px-4 pb-2.5 border-b border-[#CBAD8D]/10 flex justify-between items-center">
-                        <span className="font-semibold text-xs text-[#3A2D28]">System Notifications</span>
-                        {unreadCount > 0 && (
-                          <button 
-                            onClick={markAllNotificationsRead}
-                            className="text-[10px] text-[#A48374] hover:underline"
-                          >
-                            Mark all as read
-                          </button>
-                        )}
-                      </div>
-                      <div className="max-h-60 overflow-y-auto pt-1">
-                        {notifications.map(n => (
-                          <div 
-                            key={n.id} 
-                            className="px-4 py-3 hover:bg-[#F7F3EF]/50 transition-colors flex items-start gap-2.5 border-b border-[#CBAD8D]/5 last:border-b-0"
-                          >
-                            <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: n.read ? 'transparent' : '#A48374' }} />
-                            <div className="flex-1">
-                              <p className="font-semibold text-xs text-[#3A2D28]">{n.title}</p>
-                              <p className="text-[10px] text-[#A48374] mt-0.5 leading-normal">{n.desc}</p>
-                              <span className="text-[9px] text-[#CBAD8D] block mt-1">{n.time}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
             </div>
 
             <div className="h-4 w-px bg-[#CBAD8D]/30"></div>
@@ -310,20 +256,11 @@ export default function Header() {
                         <button 
                           onClick={() => {
                             setDropdownOpen(false);
-                            navigate('/seller/dashboard?tab=inventory');
+                            alert('Profile editing is currently being configured.');
                           }}
                           className="w-full text-left px-4 py-2 text-xs hover:bg-[#F7F3EF] transition-colors flex items-center gap-2 cursor-pointer font-medium"
                         >
-                          My Inventory
-                        </button>
-                        <button 
-                          onClick={() => {
-                            setDropdownOpen(false);
-                            navigate('/seller/orders');
-                          }}
-                          className="w-full text-left px-4 py-2 text-xs hover:bg-[#F7F3EF] transition-colors flex items-center gap-2 cursor-pointer font-medium"
-                        >
-                          Orders List
+                          Edit Profile
                         </button>
                         <button 
                           onClick={handleLogout}
@@ -367,17 +304,6 @@ export default function Header() {
             </Link>
             <Link to="/seller/orders" className={`hover:text-[#CBAD8D] transition-colors ${location.pathname === '/seller/orders' ? 'text-[#3A2D28] font-bold border-b border-[#3A2D28]' : ''}`}>
               Orders
-            </Link>
-            <Link to="/seller/dashboard?tab=messages" className={`hover:text-[#CBAD8D] transition-colors ${location.search.includes('tab=messages') ? 'text-[#3A2D28] font-bold border-b border-[#3A2D28]' : ''}`}>
-              Messages
-            </Link>
-            <Link 
-              to="/seller/add-product" 
-              className="hover:text-[#CBAD8D] transition-colors flex items-center gap-1.5"
-              style={{ color: '#A48374' }}
-            >
-              <PlusCircle className="w-3.5 h-3.5 text-[#CBAD8D]" />
-              List Diamond
             </Link>
           </div>
         </nav>
@@ -455,7 +381,11 @@ export default function Header() {
         <div className="flex items-center gap-5 lg:gap-6">
           {/* Wishlist & Cart Icons */}
           <div className="flex items-center gap-4 text-[#A48374]">
-            <button className="hover:text-[#3A2D28] transition-colors relative p-1 cursor-pointer">
+            <button 
+              onClick={() => navigate('/messages')}
+              className="hover:text-[#3A2D28] transition-colors relative p-1 cursor-pointer"
+              title="Messages & Inquiries"
+            >
               <MessageSquare className="w-[18px] h-[18px]" />
             </button>
             <button 
@@ -526,17 +456,7 @@ export default function Header() {
                           {user.role === 'admin' ? 'Admin Dashboard' : 'Buyer Dashboard'}
                         </button>
 
-                        {user.role === 'buyer' && (
-                          <button 
-                            onClick={() => {
-                              setDropdownOpen(false);
-                              navigate('/my-orders');
-                            }}
-                            className="w-full text-left px-4 py-2 text-xs hover:bg-[#F7F3EF] transition-colors flex items-center gap-2 cursor-pointer font-medium"
-                          >
-                            My Orders
-                          </button>
-                        )}
+
 
                         <button 
                           onClick={() => {
@@ -603,13 +523,11 @@ export default function Header() {
           <Link to="/rfq/create" className="hover:text-[#CBAD8D] transition-colors">
             Request Quote
           </Link>
-          <Link 
-            to={user && user.role === 'seller' ? "/seller/add-product" : "/signup?role=seller"} 
-            className="hover:text-[#CBAD8D] transition-colors flex items-center gap-1.5"
-            style={{ color: '#A48374' }}
-          >
-            <Sparkles className="w-3 h-3 text-[#CBAD8D]" />
-            Sell
+          <Link to="/negotiations" className="hover:text-[#CBAD8D] transition-colors">
+            Negotiations
+          </Link>
+          <Link to="/my-orders" className="hover:text-[#CBAD8D] transition-colors">
+            My Orders
           </Link>
         </div>
       </nav>
