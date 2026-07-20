@@ -14,7 +14,7 @@ const runTest = async () => {
     // Fetch buyer/seller to attach to orders
     let buyer = await User.findOne({ role: 'buyer' });
     let seller = await User.findOne({ role: 'seller' });
-    
+
     // Create mock order records to aggregate over
     console.log('Inserting mock orders to verify aggregation...');
     const order1 = await Order.create({
@@ -24,7 +24,7 @@ const runTest = async () => {
       shippingAddress: { fullName: 'Priya Patel', streetAddress: '123 Fine St', city: 'Mumbai', state: 'MH', zipCode: '400001', phoneNumber: '1234567890' },
       paymentStatus: 'paid',
       totalAmount: 150000,
-      createdAt: new Date() // Current month
+      createdAt: new Date()
     });
 
     const order2 = await Order.create({
@@ -71,7 +71,7 @@ const runTest = async () => {
     }
 
     const { totalRevenue, userCounts, activeAuctions, salesChartData } = jsonResult.data;
-    
+
     console.log('Asserting values...');
     console.log('Total Platform Revenue retrieved:', totalRevenue);
     if (totalRevenue < 330000) {
@@ -94,7 +94,7 @@ const runTest = async () => {
     const currentMonthLabel = new Date().toLocaleString('en-US', { month: 'short' });
     const currentYearShort = new Date().getFullYear().toString().substring(2);
     const expectedCurrentMonthName = `${currentMonthLabel} ${currentYearShort}`;
-    
+
     const currentMonthDataPoint = salesChartData.find(item => item.name === expectedCurrentMonthName);
     console.log(`Current Month (${expectedCurrentMonthName}) Revenue aggregated:`, currentMonthDataPoint.revenue);
 

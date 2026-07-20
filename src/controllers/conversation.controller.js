@@ -152,3 +152,39 @@ exports.sendMessage = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Mark conversation as read
+// @route   PATCH /api/conversations/:id/read
+// @access  Private
+exports.markAsRead = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const { id } = req.params;
+
+    const conversation = await Conversation.findById(id);
+    if (!conversation) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Conversation not found'
+      });
+    }
+
+    if (conversation.unreadCounts) {
+      conversation.unreadCounts.set(userId.toString(), 0);
+      await conversation.save();
+    }
+
+    await Message.updateMany(
+      { conversationId: id, senderId: { $ne: userId } },
+      { $set: { isRead: true } }
+    );
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Conversation marked as read'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
