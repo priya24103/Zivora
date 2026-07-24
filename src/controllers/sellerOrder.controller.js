@@ -1,5 +1,6 @@
 const Order = require('../models/Order');
 const RFQ = require('../models/RFQ');
+const { ensureRFQOrder } = require('../utils/rfqOrderHelper');
 
 // @desc    Fetch all segmented orders for the authenticated seller
 // @route   GET /api/seller/orders
@@ -7,6 +8,35 @@ const RFQ = require('../models/RFQ');
 exports.getSellerOrders = async (req, res, next) => {
   try {
     const sellerId = req.user._id;
+    const sellerIdStr = sellerId.toString();
+
+    // Reconciliation Step: Ensure an Order record exists for all awarded/completed RFQs for this seller
+    const awardedRFQs = await RFQ.find({
+      status: { $in: ['awarded', 'completed'] }
+    });
+
+    for (const rfq of awardedRFQs) {
+      let winningQuote = rfq.winningQuoteId ? rfq.quotes.id(rfq.winningQuoteId) : null;
+      if (!winningQuote) {
+        winningQuote = rfq.quotes.find(q => {
+          const qSeller = q.sellerId?._id || q.sellerId;
+          return qSeller && qSeller.toString() === sellerIdStr && q.accepted;
+        });
+      }
+      if (!winningQuote) {
+        winningQuote = rfq.quotes.find(q => {
+          const qSeller = q.sellerId?._id || q.sellerId;
+          return qSeller && qSeller.toString() === sellerIdStr;
+        });
+      }
+
+      if (winningQuote) {
+        const winnerId = (rfq.winnerSeller?._id || rfq.winnerSeller || winningQuote.sellerId?._id || winningQuote.sellerId || '').toString();
+        if (winnerId === sellerIdStr) {
+          await ensureRFQOrder(rfq, winningQuote);
+        }
+      }
+    }
 
     // Fetch all orders matching the seller's user ID
     const orders = await Order.find({ sellerIds: sellerId })
@@ -20,15 +50,12 @@ exports.getSellerOrders = async (req, res, next) => {
       })
       .sort({ createdAt: -1 });
 
-    // Fetch all awarded RFQs for this seller to distinguish RFQ products
-    const awardedRFQs = await RFQ.find({
-      status: 'awarded',
-      winnerSeller: sellerId
-    });
-
     const rfqProductIds = new Set(
       awardedRFQs.map(rfq => {
-        const winningQuote = rfq.quotes.id(rfq.winningQuoteId);
+        let winningQuote = rfq.winningQuoteId ? rfq.quotes.id(rfq.winningQuoteId) : null;
+        if (!winningQuote) {
+          winningQuote = rfq.quotes.find(q => q.sellerId.toString() === sellerId.toString());
+        }
         return winningQuote ? winningQuote.productId.toString() : null;
       }).filter(Boolean)
     );
@@ -47,6 +74,11 @@ exports.getSellerOrders = async (req, res, next) => {
           if (product.listingType === 'auction_only') {
             isAuction = true;
           } else if (rfqProductIds.has(product._id.toString())) {
+            isRfq = true;
+          }
+        } else {
+          // If title includes RFQ or product missing, check rfq
+          if (item.title && item.title.includes('RFQ')) {
             isRfq = true;
           }
         }

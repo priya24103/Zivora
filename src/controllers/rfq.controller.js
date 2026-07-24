@@ -1,5 +1,6 @@
 const RFQ = require('../models/RFQ');
 const Cart = require('../models/Cart');
+const { ensureRFQOrder } = require('../utils/rfqOrderHelper');
 
 // @desc    Create a Request for Quote (RFQ)
 // @route   POST /api/rfq/create
@@ -211,11 +212,14 @@ exports.acceptQuote = async (req, res, next) => {
 
     // Mark quote as accepted
     quote.accepted = true;
-    rfq.status = 'completed';
+    rfq.status = 'awarded';
     rfq.winnerSeller = quote.sellerId;
     rfq.winningQuoteId = quote._id;
 
     await rfq.save();
+
+    // Create pending Order record for the seller
+    await ensureRFQOrder(rfq, quote);
 
     // Push item into the buyer's Cart
     let cart = await Cart.findOne({ buyerId: req.user._id });
