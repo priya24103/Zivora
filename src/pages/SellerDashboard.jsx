@@ -375,13 +375,25 @@ export default function SellerDashboard() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (rfqRes.data.status === 'success') {
+        const userIdStr = (user?._id || user?.id || '').toString();
         const mappedRfqs = rfqRes.data.data.rfqs.map(r => {
-          const myQuoteEntry = r.quotes.find(q => q.sellerId && user?._id && q.sellerId.toString() === user._id.toString());
+          const myQuoteEntry = r.quotes.find(q => {
+            const qSeller = q.sellerId?._id || q.sellerId;
+            return qSeller && userIdStr && qSeller.toString() === userIdStr;
+          });
+
+          const winnerSellerId = r.winnerSeller?._id || r.winnerSeller;
+          const isWinner = (r.status === 'awarded' || r.status === 'completed') && 
+                           userIdStr && 
+                           (winnerSellerId?.toString() === userIdStr || (myQuoteEntry && myQuoteEntry.accepted));
+
           let statusVal = r.status;
           if (statusVal === 'pending' || statusVal === 'submitted' || statusVal === 'open') {
             statusVal = myQuoteEntry ? 'submitted' : 'pending';
+          } else if (statusVal === 'awarded' || statusVal === 'completed') {
+            statusVal = 'awarded';
           }
-          const isWinner = r.status === 'awarded' && user?._id && r.winnerSeller?.toString() === user._id.toString();
+
           return {
             id: r._id,
             buyer: r.buyerName,
@@ -391,7 +403,7 @@ export default function SellerDashboard() {
             status: statusVal,
             dbStatus: r.status,
             isWinner,
-            myQuote: myQuoteEntry ? `₹${myQuoteEntry.quotePrice.toLocaleString('en-IN')}` : undefined,
+            myQuote: myQuoteEntry ? `₹${Number(myQuoteEntry.quotePrice).toLocaleString('en-IN')}` : undefined,
             myMsg: myQuoteEntry ? myQuoteEntry.message : undefined
           };
         });
@@ -1644,11 +1656,11 @@ export default function SellerDashboard() {
                           <span>•</span>
                           <span>Received: {rfq.date}</span>
                         </div>
-                        {rfq.status === 'submitted' && (
+                        {(rfq.status === 'submitted' || rfq.myQuote) && (
                           <div className="mt-3 p-3 bg-white border border-[#CBAD8D]/20 rounded-xl text-xs">
-                            <span className="font-bold text-[#A48374] uppercase tracking-wider text-[9px]">My Submitted Offer</span>
+                            <span className="font-bold text-[#A48374] uppercase tracking-wider text-[9px]">{rfq.isWinner ? 'Winning Offer' : 'My Submitted Offer'}</span>
                             <p className="font-semibold text-[#3A2D28] mt-0.5">Quote Price: {rfq.myQuote}</p>
-                            <p className="text-[10px] text-[#A48374] mt-1 font-medium">Remarks: "{rfq.myMsg}"</p>
+                            {rfq.myMsg && <p className="text-[10px] text-[#A48374] mt-1 font-medium">Remarks: "{rfq.myMsg}"</p>}
                           </div>
                         )}
                       </div>

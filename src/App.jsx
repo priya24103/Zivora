@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import BuyerDashboard from './pages/BuyerDashboard';
 import MyOrders from './pages/MyOrders';
 import VerifyEmail from './pages/VerifyEmail';
@@ -64,6 +66,8 @@ function AppContent() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/buyer/dashboard" element={<BuyerDashboard />} />
           <Route path="/my-orders" element={<MyOrders />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
