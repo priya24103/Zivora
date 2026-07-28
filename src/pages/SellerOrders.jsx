@@ -95,7 +95,12 @@ export default function SellerOrders() {
     }));
   };
 
-  const handleSaveTracking = async (orderId) => {
+  const handleSaveTracking = async (orderId, paymentStatus) => {
+    if (paymentStatus !== 'paid') {
+      alert('Cannot update fulfillment details for unpaid orders. Payment is currently pending.');
+      return;
+    }
+
     const form = shippingForm[orderId];
     if (!form || !form.fulfillmentStatus) return;
 
@@ -294,17 +299,35 @@ export default function SellerOrders() {
                           </p>
                         </div>
                         <div>
-                          <p className="text-[10px] text-[#A48374] uppercase tracking-wider font-semibold">Amount Paid</p>
+                          <p className="text-[10px] text-[#A48374] uppercase tracking-wider font-semibold">Total Amount</p>
                           <p className="text-[#3A2D28] font-bold">
                             {formatPrice(order.totalAmount)}
                           </p>
                         </div>
+                        <div>
+                          <p className="text-[10px] text-[#A48374] uppercase tracking-wider font-semibold">Payment Status</p>
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full border ${
+                            order.paymentStatus === 'paid' 
+                              ? 'text-emerald-700 bg-emerald-50 border-emerald-200' 
+                              : order.paymentStatus === 'failed'
+                              ? 'text-red-700 bg-red-50 border-red-200'
+                              : 'text-amber-700 bg-amber-50 border-amber-200'
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${
+                              order.paymentStatus === 'paid' ? 'bg-emerald-500' : order.paymentStatus === 'failed' ? 'bg-red-500' : 'bg-amber-500'
+                            }`} />
+                            {order.paymentStatus === 'paid' ? 'Paid' : order.paymentStatus === 'failed' ? 'Failed' : 'Pending / Unpaid'}
+                          </span>
+                        </div>
                       </div>
 
-                      {/* Status badge */}
-                      <span className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full ${getStatusColor(order.fulfillmentStatus || order.orderStatus)}`}>
-                        {order.fulfillmentStatus || order.orderStatus}
-                      </span>
+                      {/* Fulfillment Status badge */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-[#A48374] uppercase tracking-wider font-semibold">Fulfillment:</span>
+                        <span className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full ${getStatusColor(order.fulfillmentStatus || order.orderStatus)}`}>
+                          {order.fulfillmentStatus || order.orderStatus}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Order Details */}
@@ -368,22 +391,12 @@ export default function SellerOrders() {
                           <h4 className="text-[10px] text-[#A48374] uppercase tracking-wider font-bold mb-2 flex items-center gap-1">
                             <Truck className="w-3.5 h-3.5" /> Logistics Log
                           </h4>
-                          {order.trackingNumber ? (
-                            <div className="space-y-1">
-                              <div className="flex gap-1.5 items-center">
-                                <span className="font-semibold text-[#3A2D28]">Tracking:</span>
-                                <span className="bg-[#3A2D28] text-white text-[10px] py-0.5 px-2 rounded-full font-mono font-medium">
-                                  {order.trackingNumber}
-                                </span>
-                              </div>
-                              <p className="text-[#A48374] text-[10px] italic">Courier: Priority insured vault</p>
-                            </div>
-                          ) : (
-                            <p className="text-[#A48374] italic">No tracking number logged yet.</p>
-                          )}
+                          <p className="text-[#3A2D28] font-semibold text-xs">
+                            Fulfillment: <span className="capitalize text-[#A48374] font-medium">{order.fulfillmentStatus || order.orderStatus || 'processing'}</span>
+                          </p>
                           
                           <button
-                            onClick={() => toggleExpandLog(order._id, order.fulfillmentStatus || order.orderStatus, order.trackingNumber)}
+                            onClick={() => toggleExpandLog(order._id, order.fulfillmentStatus || order.orderStatus)}
                             className="mt-3 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#A48374] hover:text-[#3A2D28] transition-colors cursor-pointer w-fit"
                           >
                             Update Shipping Log
@@ -406,35 +419,36 @@ export default function SellerOrders() {
                               <h5 className="text-[11px] font-bold uppercase text-[#3A2D28] mb-3 tracking-wider">
                                 Log Shipping Credentials
                               </h5>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                                <div>
-                                  <label className="block text-[10px] font-semibold text-[#A48374] uppercase tracking-wider mb-1">
-                                    Fulfillment Status
-                                  </label>
-                                  <select
-                                    value={shippingForm[order._id]?.fulfillmentStatus || 'processing'}
-                                    onChange={(e) => handleInputChange(order._id, 'fulfillmentStatus', e.target.value)}
-                                    className="w-full text-xs p-2.5 rounded-lg border border-[#CBAD8D]/30 focus:outline-none focus:ring-1 focus:ring-[#A48374] bg-white text-[#3A2D28]"
-                                  >
-                                    <option value="processing">Processing</option>
-                                    <option value="shipped">Shipped</option>
-                                    <option value="delivered">Delivered</option>
-                                    <option value="cancelled">Cancelled</option>
-                                  </select>
-                                </div>
 
-                                <div>
-                                  <label className="block text-[10px] font-semibold text-[#A48374] uppercase tracking-wider mb-1">
-                                    Tracking Code
-                                  </label>
-                                  <input
-                                    type="text"
-                                    placeholder="Enter tracking code (e.g., TRK-98218-IND)"
-                                    value={shippingForm[order._id]?.trackingNumber || ''}
-                                    onChange={(e) => handleInputChange(order._id, 'trackingNumber', e.target.value)}
-                                    className="w-full text-xs p-2.5 rounded-lg border border-[#CBAD8D]/30 focus:outline-none focus:ring-1 focus:ring-[#A48374] bg-white text-[#3A2D28]"
-                                  />
+                              {order.paymentStatus !== 'paid' && (
+                                <div className="mb-4 p-3 bg-amber-50 border border-amber-200/80 rounded-lg text-amber-800 text-xs flex items-start gap-2.5">
+                                  <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                                  <div>
+                                    <p className="font-bold text-[11px] uppercase tracking-wide">Payment Pending</p>
+                                    <p className="text-[11px] text-amber-700 mt-0.5">
+                                      Buyer has not completed payment for this order yet. Shipping and fulfillment status updates are locked until payment is verified.
+                                    </p>
+                                  </div>
                                 </div>
+                              )}
+
+                              <div>
+                                <label className="block text-[10px] font-semibold text-[#A48374] uppercase tracking-wider mb-1">
+                                  Fulfillment Status
+                                </label>
+                                <select
+                                  disabled={order.paymentStatus !== 'paid'}
+                                  value={shippingForm[order._id]?.fulfillmentStatus || 'processing'}
+                                  onChange={(e) => handleInputChange(order._id, 'fulfillmentStatus', e.target.value)}
+                                  className={`w-full text-xs p-2.5 rounded-lg border border-[#CBAD8D]/30 focus:outline-none focus:ring-1 focus:ring-[#A48374] bg-white text-[#3A2D28] ${
+                                    order.paymentStatus !== 'paid' ? 'opacity-60 bg-gray-100 cursor-not-allowed' : ''
+                                  }`}
+                                >
+                                  <option value="processing">Processing</option>
+                                  <option value="shipped">Shipped</option>
+                                  <option value="delivered">Delivered</option>
+                                  <option value="cancelled">Cancelled</option>
+                                </select>
                               </div>
 
                               <div className="flex gap-3 justify-end mt-4 border-t border-[#A48374]/10 pt-3">
@@ -445,9 +459,9 @@ export default function SellerOrders() {
                                   Close
                                 </button>
                                 <button
-                                  onClick={() => handleSaveTracking(order._id)}
-                                  disabled={submittingLog[order._id]}
-                                  className="px-5 py-2 bg-[#3A2D28] text-white hover:opacity-90 disabled:opacity-50 text-[10px] font-bold uppercase tracking-wider rounded-full transition-opacity cursor-pointer flex items-center gap-1.5"
+                                  onClick={() => handleSaveTracking(order._id, order.paymentStatus)}
+                                  disabled={submittingLog[order._id] || order.paymentStatus !== 'paid'}
+                                  className="px-5 py-2 bg-[#3A2D28] text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-[10px] font-bold uppercase tracking-wider rounded-full transition-opacity cursor-pointer flex items-center gap-1.5"
                                 >
                                   {submittingLog[order._id] ? (
                                     <>

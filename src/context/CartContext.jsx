@@ -106,12 +106,13 @@ export const CartProvider = ({ children }) => {
         const count = (cart.items || []).reduce((sum, item) => sum + (item.quantity || 1), 0);
         setCartCount(count);
         window.dispatchEvent(new Event('storage'));
-        return true;
+        return { success: true };
       }
     } catch (err) {
       console.error('Error removing from cart:', err);
-      setError(err.response?.data?.message || 'Could not remove item');
-      return false;
+      const message = err.response?.data?.message || 'Could not remove item';
+      setError(message);
+      return { success: false, message };
     } finally {
       setLoading(false);
     }
@@ -132,12 +133,13 @@ export const CartProvider = ({ children }) => {
         const count = (cart.items || []).reduce((sum, item) => sum + (item.quantity || 1), 0);
         setCartCount(count);
         window.dispatchEvent(new Event('storage'));
-        return true;
+        return { success: true };
       }
     } catch (err) {
       console.error('Error updating quantity:', err);
-      setError(err.response?.data?.message || 'Could not update quantity');
-      return false;
+      const message = err.response?.data?.message || 'Could not update quantity';
+      setError(message);
+      return { success: false, message };
     } finally {
       setLoading(false);
     }

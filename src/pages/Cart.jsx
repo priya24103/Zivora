@@ -120,24 +120,32 @@ export default function Cart() {
     fetchPendingOrders(true);
   }, []);
 
-  // Initialize selectedItems with all product IDs when cartItems loads
+  // Ensure all mandatory items are automatically included in selectedItems
   useEffect(() => {
     if (cartItems && cartItems.length > 0) {
+      const mandatoryIds = cartItems
+        .filter(item => item.isMandatory || item.itemType === 'WON_AUCTION' || item.itemType === 'ACCEPTED_RFQ')
+        .map(item => item.productId?._id)
+        .filter(Boolean);
+
       setSelectedItems(prev => {
         const currentIds = cartItems.map(item => item.productId?._id).filter(Boolean);
-        // By default, select all items if none were selected previously
         if (prev.length === 0) {
           return currentIds;
         }
-        // Filter out any IDs that were removed from the cart
-        return prev.filter(id => currentIds.includes(id));
+        const merged = Array.from(new Set([...prev, ...mandatoryIds]));
+        return merged.filter(id => currentIds.includes(id));
       });
     } else {
       setSelectedItems([]);
     }
   }, [cartItems]);
 
-  const handleCheckboxChange = (productId) => {
+  const handleCheckboxChange = (productId, isMandatoryItem = false) => {
+    if (isMandatoryItem) {
+      alert('Obligatory items (won auctions & accepted RFQs) are binding commitments and must be included in your checkout.');
+      return;
+    }
     setSelectedItems(prev => 
       prev.includes(productId) 
         ? prev.filter(id => id !== productId)
@@ -145,12 +153,16 @@ export default function Cart() {
     );
   };
 
-  const handleQuantityChange = async (productId, currentQty, increment) => {
+  const handleQuantityChange = async (productId, currentQty, increment, isMandatoryItem = false) => {
+    if (isMandatoryItem) {
+      alert('Quantity for won auctions or accepted RFQs is locked and cannot be modified.');
+      return;
+    }
     const newQty = currentQty + increment;
     if (newQty < 1) {
       if (newQty === 0) {
         if (window.confirm('Remove this item from your shopping bag?')) {
-          await handleRemoveItem(productId);
+          await handleRemoveItem(productId, isMandatoryItem);
         }
         return;
       }
@@ -161,9 +173,16 @@ export default function Cart() {
     setUpdatingQuantityId(null);
   };
 
-  const handleRemoveItem = async (productId) => {
+  const handleRemoveItem = async (productId, isMandatoryItem = false) => {
+    if (isMandatoryItem) {
+      alert('Obligatory items (won auctions & accepted RFQs) are binding commitments and cannot be removed from your cart.');
+      return;
+    }
     setActionLoading(productId);
-    await removeFromCart(productId);
+    const res = await removeFromCart(productId);
+    if (res && res.success === false) {
+      alert(res.message || 'Could not remove item from cart.');
+    }
     setActionLoading(null);
   };
 
@@ -229,13 +248,21 @@ export default function Cart() {
 
   const hasItems = cartItems && cartItems.length > 0;
 
+  // Split items into Mandatory vs Standard
+  const mandatoryCartItems = cartItems.filter(
+    item => item.isMandatory || item.itemType === 'WON_AUCTION' || item.itemType === 'ACCEPTED_RFQ'
+  );
+  const standardCartItems = cartItems.filter(
+    item => !item.isMandatory && item.itemType !== 'WON_AUCTION' && item.itemType !== 'ACCEPTED_RFQ'
+  );
+
   // Calculate dynamic Subtotal and Total based ONLY on selected items
   const selectedCartItems = cartItems.filter(item => 
     item.productId && selectedItems.includes(item.productId._id)
   );
 
   const dynamicSubtotal = selectedCartItems.reduce((sum, item) => {
-    const price = item.productId ? item.productId.price : 0;
+    const price = item.agreedPrice || (item.productId ? item.productId.price : 0);
     return sum + (price * item.quantity);
   }, 0);
 
@@ -324,116 +351,220 @@ export default function Cart() {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start">
             {/* Left Side: Cart Items */}
-            <div className="lg:col-span-2 space-y-6">
-              {cartItems.map((item) => {
-                const prod = item.productId || {};
-                const imageSrc = prod.images && prod.images.length > 0 ? prod.images[0] : '';
-                const isSelected = selectedItems.includes(prod._id);
+            <div className="lg:col-span-2 space-y-8">
+              
+              {/* SECTION 1: Obligatory Purchases (Won Auctions & Accepted RFQs) */}
+              {mandatoryCartItems.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-[#B8860B]" />
+                      <h2 className="font-serif text-lg text-[#3A2D28] font-bold">
+                        Binding Purchases ({mandatoryCartItems.length})
+                      </h2>
+                    </div>
+                    <span className="text-[10px] uppercase font-bold tracking-widest bg-[#D4AF37]/15 text-[#B8860B] px-3 py-1 rounded-full border border-[#D4AF37]/30">
+                      Payment Required
+                    </span>
+                  </div>
 
-                return (
-                  <div
-                    key={item._id || prod._id}
-                    className={`bg-white rounded-3xl p-5 md:p-6 border flex flex-col md:flex-row gap-5 items-start md:items-center justify-between hover:shadow-md transition-all relative overflow-hidden group ${
-                      isSelected ? 'border-[#A48374]/30' : 'border-[#E6DFD6] opacity-70'
-                    }`}
-                  >
-                    <div className="flex gap-4 md:gap-6 items-center flex-1 w-full">
-                      {/* Sleek Checkbox */}
-                      <label className="flex items-center cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => handleCheckboxChange(prod._id)}
-                          className="sr-only"
-                        />
-                        <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
-                          isSelected
-                            ? 'bg-[#3A2D28] border-[#3A2D28] text-[#F1EDE6]'
-                            : 'border-[#CBAD8D]/40 bg-white hover:border-[#3A2D28]'
-                        }`}>
-                          {isSelected && (
-                            <svg className="w-3.5 h-3.5 fill-current text-white" viewBox="0 0 20 20">
-                              <path d="M0 11l2-2 5 5L18 3l2 2L7 18z" />
-                            </svg>
-                          )}
-                        </div>
-                      </label>
+                  <div className="p-4 md:p-5 rounded-3xl bg-gradient-to-r from-[#FFFDF8] to-[#FAF6F0] border border-[#D4AF37]/35 space-y-4 shadow-sm">
+                    <p className="text-[11px] text-[#A48374] leading-relaxed">
+                      🔒 <strong className="text-[#3A2D28]">Binding Contract Commitment:</strong> Won auctions and accepted RFQs represent finalized agreements and cannot be removed or modified.
+                    </p>
 
-                      {/* Image Thumbnail */}
-                      <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-[#F7F3EF] border border-[#EBE3DB] flex-shrink-0 overflow-hidden flex items-center justify-center">
-                        {imageSrc ? (
-                          <img
-                            src={imageSrc}
-                            alt={prod.title || 'Product'}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          />
-                        ) : (
-                          <Sparkles className="w-6 h-6 text-[#CBAD8D] opacity-50" />
-                        )}
-                      </div>
+                    {mandatoryCartItems.map((item) => {
+                      const prod = item.productId || {};
+                      const imageSrc = prod.images && prod.images.length > 0 ? prod.images[0] : '';
+                      const isSelected = selectedItems.includes(prod._id);
+                      const isAuction = item.itemType === 'WON_AUCTION';
+                      const badgeText = isAuction ? '🏆 WON AUCTION' : '🤝 ACCEPTED RFQ';
 
-                      {/* Details */}
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[10px] uppercase font-bold tracking-widest text-[#A48374] mb-1">
-                          {prod.category}
-                        </div>
-                        <h3 className="font-serif text-[#3A2D28] text-sm md:text-base font-semibold leading-snug line-clamp-2 pr-4">
-                          {prod.title || 'Premium Marketplace Item'}
-                        </h3>
-                        
-                        {/* Refined Quantity Stepper */}
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className="text-[11px] font-medium text-[#A48374]">Quantity:</span>
-                          <div className="flex items-center border border-[#CBAD8D]/30 rounded-lg overflow-hidden bg-white">
+                      return (
+                        <div
+                          key={item._id || prod._id}
+                          className="bg-white rounded-2xl p-4 md:p-5 border border-[#D4AF37]/30 flex flex-col md:flex-row gap-5 items-start md:items-center justify-between shadow-xs relative overflow-hidden group"
+                        >
+                          <div className="flex gap-4 md:gap-6 items-center flex-1 w-full">
+                            {/* Image Thumbnail */}
+                            <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-[#FAF6F0] border border-[#EBE3DB] flex-shrink-0 overflow-hidden flex items-center justify-center relative">
+                              {imageSrc ? (
+                                <img
+                                  src={imageSrc}
+                                  alt={prod.title || 'Product'}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                />
+                              ) : (
+                                <Sparkles className="w-6 h-6 text-[#D4AF37] opacity-60" />
+                              )}
+                            </div>
+
+                            {/* Details */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-md bg-[#D4AF37]/15 text-[#B8860B] border border-[#D4AF37]/30">
+                                  {badgeText}
+                                </span>
+                              </div>
+                              <h3 className="font-serif text-[#3A2D28] text-sm md:text-base font-semibold leading-snug line-clamp-2 pr-4">
+                                {prod.title || 'Agreed Luxury Item'}
+                              </h3>
+                              
+                              <div className="flex items-center gap-2 mt-2">
+                                <span className="text-[11px] font-medium text-[#A48374]">Quantity:</span>
+                                <span className="px-2.5 py-0.5 text-xs font-bold text-[#3A2D28] bg-[#F7F3EF] border border-[#E6DFD6] rounded-md">
+                                  1 (Fixed)
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Pricing & Lock Action */}
+                          <div className="flex md:flex-col justify-between items-center md:items-end w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-[#F7F3EF] mt-2 md:mt-0">
+                            <div className="font-serif text-base md:text-lg font-bold text-[#3A2D28] mb-1">
+                              {formatINR(item.agreedPrice || prod.price || item.priceAtAdd || 0)}
+                            </div>
+                            
                             <button
-                              onClick={() => handleQuantityChange(prod._id, item.quantity, -1)}
-                              disabled={updatingQuantityId === prod._id}
-                              className="px-2 py-1 text-xs hover:bg-[#F7F3EF] text-[#3A2D28] font-bold cursor-pointer disabled:opacity-30 transition-colors"
+                              onClick={() => handleRemoveItem(prod._id, true)}
+                              className="text-[10px] uppercase tracking-widest font-bold text-[#B8860B] hover:text-[#3A2D28] transition-colors flex items-center gap-1.5 cursor-pointer py-1 bg-[#D4AF37]/10 px-2.5 rounded-lg border border-[#D4AF37]/20"
                             >
-                              -
-                            </button>
-                            <span className="px-2.5 text-xs font-bold text-[#3A2D28] min-w-[16px] text-center">
-                              {item.quantity}
-                            </span>
-                            <button
-                              onClick={() => handleQuantityChange(prod._id, item.quantity, 1)}
-                              disabled={updatingQuantityId === prod._id || (prod.stock !== undefined && item.quantity >= prod.stock)}
-                              className="px-2 py-1 text-xs hover:bg-[#F7F3EF] text-[#3A2D28] font-bold cursor-pointer disabled:opacity-30 transition-colors"
-                            >
-                              +
+                              🔒 Mandatory Item
                             </button>
                           </div>
-                          {prod.stock !== undefined && item.quantity >= prod.stock && (
-                            <span className="text-[9px] text-[#A48374] font-medium italic ml-1">Max Stock reached</span>
-                          )}
                         </div>
-                      </div>
-                    </div>
-
-                    {/* Pricing & Actions */}
-                    <div className="flex md:flex-col justify-between items-center md:items-end w-full md:w-auto pt-4 md:pt-0 border-t md:border-t-0 border-[#F7F3EF] mt-2 md:mt-0">
-                      <div className="font-serif text-base md:text-lg font-bold text-[#3A2D28] mb-1">
-                        {formatINR((prod.price || item.priceAtAdd || 0) * item.quantity)}
-                      </div>
-                      
-                      <button
-                        onClick={() => handleRemoveItem(prod._id)}
-                        disabled={actionLoading === prod._id}
-                        className="text-[10px] uppercase tracking-widest font-bold text-[#A48374] hover:text-red-600 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 py-1"
-                      >
-                        {actionLoading === prod._id ? (
-                          'Removing...'
-                        ) : (
-                          <>
-                            <Trash2 className="w-3.5 h-3.5" />
-                            Remove
-                          </>
-                        )}
-                      </button>
-                    </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              )}
+
+              {/* SECTION 2: Standard Shopping Bag */}
+              {standardCartItems.length > 0 && (
+                <div className="space-y-4">
+                  {mandatoryCartItems.length > 0 && (
+                    <div className="flex items-center gap-2 px-1 pt-2">
+                      <ShoppingBag className="w-4 h-4 text-[#A48374]" />
+                      <h2 className="font-serif text-lg text-[#3A2D28] font-bold">
+                        Standard Items ({standardCartItems.length})
+                      </h2>
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    {standardCartItems.map((item) => {
+                      const prod = item.productId || {};
+                      const imageSrc = prod.images && prod.images.length > 0 ? prod.images[0] : '';
+                      const isSelected = selectedItems.includes(prod._id);
+
+                      return (
+                        <div
+                          key={item._id || prod._id}
+                          className={`bg-white rounded-3xl p-5 md:p-6 border flex flex-col md:flex-row gap-5 items-start md:items-center justify-between hover:shadow-md transition-all relative overflow-hidden group ${
+                            isSelected ? 'border-[#A48374]/30' : 'border-[#E6DFD6] opacity-70'
+                          }`}
+                        >
+                          <div className="flex gap-4 md:gap-6 items-center flex-1 w-full">
+                            {/* Sleek Checkbox */}
+                            <label className="flex items-center cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleCheckboxChange(prod._id, false)}
+                                className="sr-only"
+                              />
+                              <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
+                                isSelected
+                                  ? 'bg-[#3A2D28] border-[#3A2D28] text-[#F1EDE6]'
+                                  : 'border-[#CBAD8D]/40 bg-white hover:border-[#3A2D28]'
+                              }`}>
+                                {isSelected && (
+                                  <svg className="w-3.5 h-3.5 fill-current text-white" viewBox="0 0 20 20">
+                                    <path d="M0 11l2-2 5 5L18 3l2 2L7 18z" />
+                                  </svg>
+                                )}
+                              </div>
+                            </label>
+
+                            {/* Image Thumbnail */}
+                            <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-[#F7F3EF] border border-[#EBE3DB] flex-shrink-0 overflow-hidden flex items-center justify-center">
+                              {imageSrc ? (
+                                <img
+                                  src={imageSrc}
+                                  alt={prod.title || 'Product'}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                />
+                              ) : (
+                                <Sparkles className="w-6 h-6 text-[#CBAD8D] opacity-50" />
+                              )}
+                            </div>
+
+                            {/* Details */}
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[10px] uppercase font-bold tracking-widest text-[#A48374] mb-1">
+                                {prod.category}
+                              </div>
+                              <h3 className="font-serif text-[#3A2D28] text-sm md:text-base font-semibold leading-snug line-clamp-2 pr-4">
+                                {prod.title || 'Premium Marketplace Item'}
+                              </h3>
+                              
+                              {/* Refined Quantity Stepper */}
+                              <div className="flex items-center gap-2 mt-2">
+                                <span className="text-[11px] font-medium text-[#A48374]">Quantity:</span>
+                                <div className="flex items-center border border-[#CBAD8D]/30 rounded-lg overflow-hidden bg-white">
+                                  <button
+                                    onClick={() => handleQuantityChange(prod._id, item.quantity, -1, false)}
+                                    disabled={updatingQuantityId === prod._id}
+                                    className="px-2 py-1 text-xs hover:bg-[#F7F3EF] text-[#3A2D28] font-bold cursor-pointer disabled:opacity-30 transition-colors"
+                                  >
+                                    -
+                                  </button>
+                                  <span className="px-2.5 text-xs font-bold text-[#3A2D28] min-w-[16px] text-center">
+                                    {item.quantity}
+                                  </span>
+                                  <button
+                                    onClick={() => handleQuantityChange(prod._id, item.quantity, 1, false)}
+                                    disabled={updatingQuantityId === prod._id || (prod.stock !== undefined && item.quantity >= prod.stock)}
+                                    className="px-2 py-1 text-xs hover:bg-[#F7F3EF] text-[#3A2D28] font-bold cursor-pointer disabled:opacity-30 transition-colors"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                                {prod.stock !== undefined && item.quantity >= prod.stock && (
+                                  <span className="text-[9px] text-[#A48374] font-medium italic ml-1">Max Stock reached</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Pricing & Actions */}
+                          <div className="flex md:flex-col justify-between items-center md:items-end w-full md:w-auto pt-4 md:pt-0 border-t md:border-t-0 border-[#F7F3EF] mt-2 md:mt-0">
+                            <div className="font-serif text-base md:text-lg font-bold text-[#3A2D28] mb-1">
+                              {formatINR((prod.price || item.priceAtAdd || 0) * item.quantity)}
+                            </div>
+                            
+                            <button
+                              onClick={() => handleRemoveItem(prod._id, false)}
+                              disabled={actionLoading === prod._id}
+                              className="text-[10px] uppercase tracking-widest font-bold text-[#A48374] hover:text-red-600 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 py-1"
+                            >
+                              {actionLoading === prod._id ? (
+                                'Removing...'
+                              ) : (
+                                <>
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  Remove
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
             </div>
 
             {/* Right Side: Order Summary */}

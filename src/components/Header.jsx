@@ -287,19 +287,19 @@ export default function Header() {
           }}
         >
           <div className="flex items-center gap-8 lg:gap-12 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#6B5549]">
-            <Link to="/seller/dashboard?tab=overview" className={`hover:text-[#CBAD8D] transition-colors flex items-center gap-1.5 ${location.search.includes('tab=overview') || location.search === '' ? 'text-[#3A2D28] font-bold border-b border-[#3A2D28]' : ''}`}>
+            <Link to="/seller/dashboard?tab=overview" className={`hover:text-[#CBAD8D] transition-colors flex items-center gap-1.5 ${location.pathname === '/seller/dashboard' && (location.search.includes('tab=overview') || location.search === '' || location.search === '?tab=overview') ? 'text-[#3A2D28] font-bold border-b border-[#3A2D28]' : ''}`}>
               Dashboard
             </Link>
-            <Link to="/seller/dashboard?tab=inventory" className={`hover:text-[#CBAD8D] transition-colors ${location.search.includes('tab=inventory') ? 'text-[#3A2D28] font-bold border-b border-[#3A2D28]' : ''}`}>
+            <Link to="/seller/dashboard?tab=inventory" className={`hover:text-[#CBAD8D] transition-colors ${location.pathname === '/seller/dashboard' && location.search.includes('tab=inventory') ? 'text-[#3A2D28] font-bold border-b border-[#3A2D28]' : ''}`}>
               Inventory
             </Link>
-            <Link to="/seller/dashboard?tab=auctions" className={`hover:text-[#CBAD8D] transition-colors ${location.search.includes('tab=auctions') ? 'text-[#3A2D28] font-bold border-b border-[#3A2D28]' : ''}`}>
+            <Link to="/seller/dashboard?tab=auctions" className={`hover:text-[#CBAD8D] transition-colors ${location.pathname === '/seller/dashboard' && location.search.includes('tab=auctions') ? 'text-[#3A2D28] font-bold border-b border-[#3A2D28]' : ''}`}>
               Auctions
             </Link>
-            <Link to="/seller/dashboard?tab=rfqs" className={`hover:text-[#CBAD8D] transition-colors ${location.search.includes('tab=rfqs') ? 'text-[#3A2D28] font-bold border-b border-[#3A2D28]' : ''}`}>
+            <Link to="/seller/dashboard?tab=rfqs" className={`hover:text-[#CBAD8D] transition-colors ${location.pathname === '/seller/dashboard' && location.search.includes('tab=rfqs') ? 'text-[#3A2D28] font-bold border-b border-[#3A2D28]' : ''}`}>
               Buyer RFQs
             </Link>
-            <Link to="/seller/dashboard?tab=negotiations" className={`hover:text-[#CBAD8D] transition-colors ${location.search.includes('tab=negotiations') ? 'text-[#3A2D28] font-bold border-b border-[#3A2D28]' : ''}`}>
+            <Link to="/seller/dashboard?tab=negotiations" className={`hover:text-[#CBAD8D] transition-colors ${location.pathname === '/seller/dashboard' && location.search.includes('tab=negotiations') ? 'text-[#3A2D28] font-bold border-b border-[#3A2D28]' : ''}`}>
               Negotiations
             </Link>
             <Link to="/seller/orders" className={`hover:text-[#CBAD8D] transition-colors ${location.pathname === '/seller/orders' ? 'text-[#3A2D28] font-bold border-b border-[#3A2D28]' : ''}`}>

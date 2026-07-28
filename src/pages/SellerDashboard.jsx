@@ -8,7 +8,7 @@ import {
   ShieldCheck, 
   Diamond, 
   Gavel, 
-  DollarSign, 
+  IndianRupee, 
   LogOut, 
   PlusCircle, 
   FileText, 
@@ -32,7 +32,9 @@ import {
   ChevronLeft,
   ExternalLink,
   Handshake,
-  Edit2
+  Edit2,
+  ShoppingBag,
+  Tag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
@@ -87,10 +89,28 @@ export default function SellerDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
+  // Dynamic Dashboard Metrics & Chart State
+  const [totalSalesAmount, setTotalSalesAmount] = useState(0);
+  const [sellerRating, setSellerRating] = useState('5.0');
+  const [closedOrdersCount, setClosedOrdersCount] = useState(0);
+  const [monthlyChartData, setMonthlyChartData] = useState([]);
+
+  const formatSalesAmount = (amount) => {
+    if (!amount || amount === 0) return '₹0';
+    if (amount >= 10000000) {
+      return `₹${(amount / 10000000).toFixed(2)} Cr`;
+    } else if (amount >= 100000) {
+      return `₹${(amount / 100000).toFixed(2)} L`;
+    }
+    return `₹${amount.toLocaleString('en-IN')}`;
+  };
+  
   // Search & Filter States
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [listingTypeTab, setListingTypeTab] = useState('all'); // 'all' | 'direct' | 'auction'
+  const [listingTypeFilter, setListingTypeFilter] = useState('All'); // 'All' | 'direct_sale' | 'auction_only'
 
   // Interactive Modals & Workflow States
   const [showAuctionModal, setShowAuctionModal] = useState(false);
@@ -432,6 +452,80 @@ export default function SellerDashboard() {
         });
         setConversations(mapped);
       }
+
+      // 5. Fetch seller orders for metrics & sales chart
+      try {
+        const ordersRes = await axios.get('http://localhost:2409/api/seller/orders', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (ordersRes.data.status === 'success') {
+          const { directSaleOrders = [], auctionOrders = [], rfqOrders = [], orders = [] } = ordersRes.data.data || {};
+          const sellerOrders = [...directSaleOrders, ...auctionOrders, ...rfqOrders, ...orders];
+
+          let salesSum = 0;
+          let closedCount = 0;
+
+          sellerOrders.forEach(o => {
+            const pStatus = String(o.paymentStatus || '').toLowerCase();
+            const oStatus = String(o.orderStatus || o.fulfillmentStatus || '').toLowerCase();
+
+            if (pStatus === 'paid' && oStatus !== 'cancelled') {
+              salesSum += Number(o.totalAmount || 0);
+              closedCount += 1;
+            }
+          });
+
+          setTotalSalesAmount(salesSum);
+          setClosedOrdersCount(closedCount);
+
+          // Calculate rating dynamically based on total vs cancelled orders ratio
+          const totalOrders = sellerOrders.length;
+          if (totalOrders === 0) {
+            setSellerRating('5.0');
+          } else {
+            const cancelledCount = sellerOrders.filter(o => String(o.orderStatus || o.fulfillmentStatus || '').toLowerCase() === 'cancelled').length;
+            const successRatio = (totalOrders - cancelledCount) / totalOrders;
+            const ratingVal = Math.min(5.0, Math.max(4.0, 4.5 + (successRatio * 0.5)));
+            setSellerRating(ratingVal.toFixed(1));
+          }
+
+          // Calculate Monthly Trading Growth Chart Data for past 6 months
+          const now = new Date();
+          const monthsList = [];
+          for (let i = 5; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const monthName = d.toLocaleString('en-US', { month: 'short' });
+            const year = d.getFullYear();
+            const monthIndex = d.getMonth();
+
+            const monthOrders = sellerOrders.filter(o => {
+              const oDate = new Date(o.createdAt);
+              const pStatus = String(o.paymentStatus || '').toLowerCase();
+              return oDate.getFullYear() === year && oDate.getMonth() === monthIndex && pStatus === 'paid';
+            });
+
+            const monthRevenue = monthOrders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+            monthsList.push({
+              month: monthName,
+              revenue: monthRevenue
+            });
+          }
+
+          const maxRevenue = Math.max(...monthsList.map(m => m.revenue), 1);
+          const formattedChart = monthsList.map(m => {
+            const heightPercent = m.revenue > 0 ? `${Math.max(18, Math.round((m.revenue / maxRevenue) * 100))}%` : '10%';
+            return {
+              month: m.month,
+              val: heightPercent,
+              amount: m.revenue > 0 ? formatSalesAmount(m.revenue) : '₹0'
+            };
+          });
+
+          setMonthlyChartData(formattedChart);
+        }
+      } catch (orderErr) {
+        console.error('Error fetching seller orders for metrics:', orderErr);
+      }
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
       setError('Could not retrieve console data from the database.');
@@ -614,13 +708,31 @@ export default function SellerDashboard() {
 
   const activeConv = conversations.find(c => c.id === activeConversationId);
 
+  // Inventory Channel Counts
+  const directSaleCount = inventory.filter(item => item.listingType !== 'auction_only').length;
+  const auctionProductCount = inventory.filter(item => item.listingType === 'auction_only').length;
+
   // Filtered inventory calculations
   const filteredInventory = inventory.filter(item => {
+    const isAuction = item.listingType === 'auction_only';
+    const isDirect = !isAuction;
+
+    const matchesSectionTab = 
+      listingTypeTab === 'all' || 
+      (listingTypeTab === 'direct' && isDirect) || 
+      (listingTypeTab === 'auction' && isAuction);
+
+    const matchesTypeFilter = 
+      listingTypeFilter === 'All' || 
+      (listingTypeFilter === 'direct_sale' && isDirect) || 
+      (listingTypeFilter === 'auction_only' && isAuction);
+
     const matchesSearch = item.title?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           item.description?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = categoryFilter === 'All' || item.category === categoryFilter;
     const matchesStatus = statusFilter === 'All' || item.status === statusFilter;
-    return matchesSearch && matchesCategory && matchesStatus;
+
+    return matchesSectionTab && matchesTypeFilter && matchesSearch && matchesCategory && matchesStatus;
   });
 
   const kycStatus = user.sellerProfile?.kycStatus || 'pending';
@@ -767,10 +879,10 @@ export default function SellerDashboard() {
                   {/* Card 2: Total Sales */}
                   <div className="bg-white rounded-[24px] p-6 border border-[#CBAD8D]/15 shadow-[0_8px_30px_rgba(0,0,0,0.015)] flex items-center gap-5">
                     <div className="w-14 h-14 rounded-2xl bg-[#ECFDF5] flex items-center justify-center text-[#047857] flex-shrink-0">
-                      <DollarSign className="w-7 h-7" />
+                      <IndianRupee className="w-7 h-7" />
                     </div>
                     <div>
-                      <h4 className="text-3xl font-light text-[#3A2D28] tracking-tight">₹2.84 Cr</h4>
+                      <h4 className="text-3xl font-light text-[#3A2D28] tracking-tight">{loading ? '...' : formatSalesAmount(totalSalesAmount)}</h4>
                       <p className="text-[11px] font-semibold uppercase tracking-wider text-[#A48374] mt-1">Total Sales</p>
                     </div>
                   </div>
@@ -792,7 +904,7 @@ export default function SellerDashboard() {
                       <TrendingUp className="w-7 h-7" />
                     </div>
                     <div>
-                      <h4 className="text-3xl font-light text-[#3A2D28] tracking-tight">4.9</h4>
+                      <h4 className="text-3xl font-light text-[#3A2D28] tracking-tight">{loading ? '...' : sellerRating}</h4>
                       <p className="text-[11px] font-semibold uppercase tracking-wider text-[#A48374] mt-1">Seller Rating</p>
                     </div>
                   </div>
@@ -806,19 +918,19 @@ export default function SellerDashboard() {
                     <div className="bg-white rounded-[28px] p-8 border border-[#CBAD8D]/15 shadow-sm">
                       <div className="flex justify-between items-center mb-6">
                         <h3 className="text-xl font-light text-[#3A2D28]" style={{ fontFamily: 'Georgia, serif' }}>Sales & Trading Growth</h3>
-                        <span className="text-xs text-[#A48374] font-semibold tracking-wider uppercase bg-[#F7F3EF] px-3 py-1 rounded-full">Quarterly View</span>
+                        <span className="text-xs text-[#A48374] font-semibold tracking-wider uppercase bg-[#F7F3EF] px-3 py-1 rounded-full">6 Month View</span>
                       </div>
                       
-                      {/* Styled Simulated Graph Bar Chart */}
+                      {/* Styled Dynamic Graph Bar Chart */}
                       <div className="h-56 flex items-end justify-between gap-4 mt-6 border-b border-[#CBAD8D]/20 pb-4">
-                        {[
-                          { month: 'Jan', val: '40%', amount: '₹12.4L' },
-                          { month: 'Feb', val: '55%', amount: '₹18.9L' },
-                          { month: 'Mar', val: '72%', amount: '₹26.5L' },
-                          { month: 'Apr', val: '60%', amount: '₹21.0L' },
-                          { month: 'May', val: '88%', amount: '₹42.2L' },
-                          { month: 'Jun', val: '95%', amount: '₹58.7L' }
-                        ].map((d, i) => (
+                        {(monthlyChartData.length > 0 ? monthlyChartData : [
+                          { month: 'Jan', val: '10%', amount: '₹0' },
+                          { month: 'Feb', val: '10%', amount: '₹0' },
+                          { month: 'Mar', val: '10%', amount: '₹0' },
+                          { month: 'Apr', val: '10%', amount: '₹0' },
+                          { month: 'May', val: '10%', amount: '₹0' },
+                          { month: 'Jun', val: '10%', amount: '₹0' }
+                        ]).map((d, i) => (
                           <div key={i} className="flex-1 flex flex-col items-center group relative cursor-pointer">
                             {/* Hover Tooltip */}
                             <div className="absolute -top-12 bg-[#3A2D28] text-white text-[10px] font-bold py-1 px-2.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-md">
@@ -836,8 +948,8 @@ export default function SellerDashboard() {
                       </div>
                       
                       <div className="flex justify-between items-center text-xs text-[#A48374] font-medium pt-4">
-                        <p>Total Revenue Transacted: <strong className="text-[#3A2D28]">₹1.79 Cr</strong></p>
-                        <p>Total Orders Closed: <strong className="text-[#3A2D28]">28</strong></p>
+                        <p>Total Revenue Transacted: <strong className="text-[#3A2D28]">{formatSalesAmount(totalSalesAmount)}</strong></p>
+                        <p>Total Orders Closed: <strong className="text-[#3A2D28]">{closedOrdersCount}</strong></p>
                       </div>
                     </div>
 
@@ -996,8 +1108,56 @@ export default function SellerDashboard() {
                   </button>
                 </div>
 
+                {/* Sub-Navigation Section Tabs: All vs Direct Sales vs Auction Products */}
+                <div className="flex border-b border-[#CBAD8D]/15 mb-6 overflow-x-auto gap-2">
+                  <button
+                    onClick={() => setListingTypeTab('all')}
+                    className={`flex items-center gap-2 py-3 px-5 text-xs uppercase tracking-wider font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                      listingTypeTab === 'all'
+                        ? 'border-[#3A2D28] text-[#3A2D28]'
+                        : 'border-transparent text-[#A48374] hover:text-[#3A2D28]'
+                    }`}
+                  >
+                    <ShoppingBag className="w-4 h-4" />
+                    All Products
+                    <span className="ml-1.5 px-2 py-0.5 text-[10px] rounded-full bg-[#3A2D28]/10 text-[#3A2D28]">
+                      {inventory.length}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setListingTypeTab('direct')}
+                    className={`flex items-center gap-2 py-3 px-5 text-xs uppercase tracking-wider font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                      listingTypeTab === 'direct'
+                        ? 'border-[#3A2D28] text-[#3A2D28]'
+                        : 'border-transparent text-[#A48374] hover:text-[#3A2D28]'
+                    }`}
+                  >
+                    <Tag className="w-4 h-4" />
+                    Direct Sales Inventory
+                    <span className="ml-1.5 px-2 py-0.5 text-[10px] rounded-full bg-[#3A2D28]/10 text-[#3A2D28]">
+                      {directSaleCount}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setListingTypeTab('auction')}
+                    className={`flex items-center gap-2 py-3 px-5 text-xs uppercase tracking-wider font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                      listingTypeTab === 'auction'
+                        ? 'border-[#3A2D28] text-[#3A2D28]'
+                        : 'border-transparent text-[#A48374] hover:text-[#3A2D28]'
+                    }`}
+                  >
+                    <Gavel className="w-4 h-4" />
+                    Auction Products
+                    <span className="ml-1.5 px-2 py-0.5 text-[10px] rounded-full bg-amber-100 text-amber-800 font-bold">
+                      {auctionProductCount}
+                    </span>
+                  </button>
+                </div>
+
                 {/* Filter and Search Bar Row */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-6">
                   {/* Search Bar */}
                   <div className="md:col-span-2 relative flex items-center">
                     <Search className="absolute left-4 w-4 h-4 text-[#A48374]" />
@@ -1008,6 +1168,19 @@ export default function SellerDashboard() {
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="w-full pl-11 pr-4 py-2.5 rounded-full text-xs border border-[#CBAD8D]/20 focus:outline-none focus:border-[#A48374] bg-[#F7F3EF]/30"
                     />
+                  </div>
+
+                  {/* Listing Channel Filter */}
+                  <div className="relative">
+                    <select
+                      value={listingTypeFilter}
+                      onChange={(e) => setListingTypeFilter(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-full text-xs border border-[#CBAD8D]/20 focus:outline-none focus:border-[#A48374] bg-white text-[#3A2D28] appearance-none cursor-pointer"
+                    >
+                      <option value="All">All Channels</option>
+                      <option value="direct_sale">Direct Sales</option>
+                      <option value="auction_only">Auction Products</option>
+                    </select>
                   </div>
 
                   {/* Category Filter */}
@@ -1044,8 +1217,9 @@ export default function SellerDashboard() {
                     <thead>
                       <tr className="border-b border-[#CBAD8D]/20 text-[#A48374] text-xs uppercase tracking-wider font-semibold">
                         <th className="pb-3 pl-2">Stone / Jewelry Info</th>
+                        <th className="pb-3">Listing Channel</th>
                         <th className="pb-3">Base Price</th>
-                        <th className="pb-3">Type</th>
+                        <th className="pb-3">Category</th>
                         <th className="pb-3">Stock</th>
                         <th className="pb-3">Listing Status</th>
                         <th className="pb-3 text-right pr-2">Actions</th>
@@ -1054,13 +1228,13 @@ export default function SellerDashboard() {
                     <tbody className="divide-y divide-[#CBAD8D]/10">
                       {loading ? (
                         <tr>
-                          <td colSpan="6" className="py-12 text-center text-xs text-[#A48374] italic">
+                          <td colSpan="7" className="py-12 text-center text-xs text-[#A48374] italic">
                             Connecting to database...
                           </td>
                         </tr>
                       ) : filteredInventory.length === 0 ? (
                         <tr>
-                          <td colSpan="6" className="py-12 text-center text-xs text-[#A48374] italic">
+                          <td colSpan="7" className="py-12 text-center text-xs text-[#A48374] italic">
                             No listings match your search criteria.
                           </td>
                         </tr>
@@ -1073,6 +1247,7 @@ export default function SellerDashboard() {
                             sold: { label: 'Sold', bg: '#F1EDE6', color: '#6B5549' }
                           };
                           const badge = statusColors[item.status] || { label: item.status, bg: '#F1EDE6', color: '#6B5549' };
+                          const isAuctionItem = item.listingType === 'auction_only';
                           
                           return (
                             <tr key={item._id} className="text-[#3A2D28] hover:bg-[#FBF9F6] transition-colors">
@@ -1098,6 +1273,20 @@ export default function SellerDashboard() {
                                     </div>
                                   )}
                                 </div>
+                              </td>
+                              {/* Listing Channel */}
+                              <td className="py-4">
+                                {isAuctionItem ? (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9.5px] font-bold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200/80 shadow-xs">
+                                    <Gavel className="w-3 h-3 text-amber-600" />
+                                    Auction
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9.5px] font-bold uppercase tracking-wider bg-[#F7F3EF] text-[#3A2D28] border border-[#CBAD8D]/30 shadow-xs">
+                                    <Tag className="w-3 h-3 text-[#A48374]" />
+                                    Direct Sale
+                                  </span>
+                                )}
                               </td>
                               {/* Price */}
                               <td className="py-4 font-semibold text-xs md:text-sm">
