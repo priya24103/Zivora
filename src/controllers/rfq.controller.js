@@ -232,10 +232,18 @@ exports.acceptQuote = async (req, res, next) => {
       cart.items.push({
         productId: quote.productId,
         quantity: 1,
-        priceAtAdd: quote.quotePrice
+        priceAtAdd: quote.quotePrice,
+        itemType: 'ACCEPTED_RFQ',
+        isMandatory: true,
+        agreedPrice: quote.quotePrice,
+        referenceId: rfq._id
       });
     } else {
       cart.items[itemIdx].priceAtAdd = quote.quotePrice;
+      cart.items[itemIdx].itemType = 'ACCEPTED_RFQ';
+      cart.items[itemIdx].isMandatory = true;
+      cart.items[itemIdx].agreedPrice = quote.quotePrice;
+      cart.items[itemIdx].referenceId = rfq._id;
     }
     await cart.save();
 

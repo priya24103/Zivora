@@ -82,9 +82,16 @@ const processSingleAuction = async (auction) => {
     );
 
     if (!itemExists) {
-      cart.items.push({ productId: auction.productId, quantity: 1 });
+      cart.items.push({ 
+        productId: auction.productId, 
+        quantity: 1,
+        itemType: 'WON_AUCTION',
+        isMandatory: true,
+        agreedPrice: auction.currentHighestBid,
+        referenceId: auction._id
+      });
       await cart.save();
-      console.log(`[Auction Expiry Job] Automatically added product ${auction.productId} to winner ${auction.highestBidder}'s cart.`);
+      console.log(`[Auction Expiry Job] Automatically added product ${auction.productId} (Won Auction) to winner ${auction.highestBidder}'s cart.`);
     }
   } else {
     // Zero bids: Leave Product status as 'available' (it's already available).

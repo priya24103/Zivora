@@ -4,9 +4,9 @@ const Auction = require('../models/Auction');
 const Order = require('../models/Order');
 const RFQ = require('../models/RFQ');
 
-// Helper to calculate price overriding with completed auction or accepted RFQ quote
-const getProductPriceForUser = async (product, userId) => {
-  if (!product) return 0;
+// Helper to calculate price & metadata overriding with completed auction or accepted RFQ quote
+const getCartItemMetadata = async (product, userId) => {
+  if (!product) return { price: 0, itemType: 'STANDARD', isMandatory: false };
   
   const completedAuction = await Auction.findOne({
     productId: product._id,
@@ -15,12 +15,18 @@ const getProductPriceForUser = async (product, userId) => {
   });
 
   if (completedAuction) {
-    return completedAuction.currentHighestBid;
+    return {
+      price: completedAuction.currentHighestBid,
+      itemType: 'WON_AUCTION',
+      isMandatory: true,
+      agreedPrice: completedAuction.currentHighestBid,
+      referenceId: completedAuction._id
+    };
   }
 
   const acceptedRfq = await RFQ.findOne({
     buyerId: userId,
-    status: 'completed',
+    status: { $in: ['completed', 'awarded'] },
     "quotes.productId": product._id,
     "quotes.accepted": true
   });
@@ -28,11 +34,26 @@ const getProductPriceForUser = async (product, userId) => {
   if (acceptedRfq) {
     const acceptedQuote = acceptedRfq.quotes.find(q => q.productId.toString() === product._id.toString() && q.accepted === true);
     if (acceptedQuote) {
-      return acceptedQuote.quotePrice;
+      return {
+        price: acceptedQuote.quotePrice,
+        itemType: 'ACCEPTED_RFQ',
+        isMandatory: true,
+        agreedPrice: acceptedQuote.quotePrice,
+        referenceId: acceptedRfq._id
+      };
     }
   }
 
-  return product.price;
+  return {
+    price: product.price,
+    itemType: 'STANDARD',
+    isMandatory: false
+  };
+};
+
+const getProductPriceForUser = async (product, userId) => {
+  const meta = await getCartItemMetadata(product, userId);
+  return meta.price;
 };
 
 // @desc    Fetch the logged-in buyer's cart
@@ -42,7 +63,7 @@ exports.getCart = async (req, res, next) => {
   try {
     let cart = await Cart.findOne({ buyerId: req.user._id }).populate({
       path: 'items.productId',
-      select: 'title price images category status stock'
+      select: 'title price images category status stock listingType'
     });
 
     if (!cart) {
@@ -61,13 +82,30 @@ exports.getCart = async (req, res, next) => {
     // Filter out items where the product no longer exists
     cart.items = cart.items.filter(item => item.productId != null);
 
-    // Calculate dynamic total on the fly, overriding prices for won auctions
+    // Calculate dynamic total on the fly and enrich metadata
     let cartTotal = 0;
+    const enrichedItems = [];
     for (const item of cart.items) {
       const product = item.productId;
       if (product) {
-        product.price = await getProductPriceForUser(product, req.user._id);
-        cartTotal += product.price * item.quantity;
+        const meta = await getCartItemMetadata(product, req.user._id);
+        product.price = meta.price;
+
+        const rawItem = item.toObject ? item.toObject() : { ...item };
+        const isMandatory = item.isMandatory || meta.isMandatory;
+        const itemType = item.itemType && item.itemType !== 'STANDARD' ? item.itemType : meta.itemType;
+
+        const enrichedItem = {
+          ...rawItem,
+          itemType,
+          isMandatory,
+          agreedPrice: meta.agreedPrice || meta.price,
+          referenceId: item.referenceId || meta.referenceId || null,
+          quantity: isMandatory ? 1 : item.quantity
+        };
+
+        cartTotal += meta.price * enrichedItem.quantity;
+        enrichedItems.push(enrichedItem);
       }
     }
 
@@ -77,7 +115,7 @@ exports.getCart = async (req, res, next) => {
         cart: {
           _id: cart._id,
           buyerId: cart.buyerId,
-          items: cart.items,
+          items: enrichedItems,
           cartTotal
         }
       }
@@ -201,6 +239,18 @@ exports.removeFromCart = async (req, res, next) => {
         status: 'error',
         message: 'Cart not found'
       });
+    }
+
+    const itemToRemove = cart.items.find(item => item.productId.toString() === productId);
+    if (itemToRemove) {
+      const product = await Product.findById(productId);
+      const meta = await getCartItemMetadata(product, req.user._id);
+      if (itemToRemove.isMandatory || meta.isMandatory || itemToRemove.itemType === 'WON_AUCTION' || itemToRemove.itemType === 'ACCEPTED_RFQ') {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Obligatory items (won auctions / accepted RFQs) are binding commitments and cannot be removed from your shopping bag.'
+        });
+      }
     }
 
     cart.items = cart.items.filter(item => item.productId.toString() !== productId);
@@ -415,6 +465,18 @@ exports.updateQuantity = async (req, res, next) => {
     let cart = await Cart.findOne({ buyerId: req.user._id });
     if (!cart) {
       cart = new Cart({ buyerId: req.user._id, items: [] });
+    }
+
+    const itemToUpdate = cart.items.find(item => item.productId.toString() === productId);
+    if (itemToUpdate) {
+      const product = await Product.findById(productId);
+      const meta = await getCartItemMetadata(product, req.user._id);
+      if (itemToUpdate.isMandatory || meta.isMandatory || itemToUpdate.itemType === 'WON_AUCTION' || itemToUpdate.itemType === 'ACCEPTED_RFQ') {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Quantity for won auctions or accepted RFQs is fixed and cannot be modified.'
+        });
+      }
     }
 
     // If quantity is 0, remove the item entirely

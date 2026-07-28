@@ -348,6 +348,13 @@ exports.updateTrackingStatus = async (req, res, next) => {
       });
     }
 
+    if (order.paymentStatus !== 'paid') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Cannot update fulfillment or tracking status for unpaid orders. Payment is currently pending.'
+      });
+    }
+
     if (fulfillmentStatus) {
       const allowedStatus = ['processing', 'shipped', 'delivered', 'cancelled'];
       if (!allowedStatus.includes(fulfillmentStatus)) {

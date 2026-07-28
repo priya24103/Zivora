@@ -151,6 +151,14 @@ exports.updateTrackingStatus = async (req, res, next) => {
       });
     }
 
+    // Verify order payment status is paid
+    if (order.paymentStatus !== 'paid') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Cannot update fulfillment status for unpaid orders. Payment is currently pending.'
+      });
+    }
+
     order.fulfillmentStatus = fulfillmentStatus;
     order.orderStatus = fulfillmentStatus; // sync fulfillment with orderStatus
 
