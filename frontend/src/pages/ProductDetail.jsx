@@ -15,9 +15,12 @@ import {
   Calendar,
   Send,
   X,
-  Handshake
+  Handshake,
+  Clock
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import MakeOfferModal from '../components/MakeOfferModal';
+import HeartButton from '../components/HeartButton';
 
 const API_BASE = 'http://localhost:2409/api';
 
@@ -38,6 +41,11 @@ export default function ProductDetail() {
   const [inquirySending, setInquirySending] = useState(false);
   const [inquirySuccess, setInquirySuccess] = useState(false);
   const [offerModalOpen, setOfferModalOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const triggerToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 4000);
+  };
 
   // Fetch product detail
   useEffect(() => {
@@ -66,6 +74,54 @@ export default function ProductDetail() {
     if (id) fetchProduct();
   }, [id]);
 
+  const [isFavorited, setIsFavorited] = useState(false);
+
+  // Check if item is in wishlist on load
+  useEffect(() => {
+    const checkWishlist = async () => {
+      const token = localStorage.getItem('zivora_token');
+      if (!token) return;
+      try {
+        const response = await axios.get(`${API_BASE}/wishlist`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (response.data.status === 'success') {
+          const items = response.data.data.wishlist.items || [];
+          const favorited = items.some(item => item.productId?._id === id || item.productId === id);
+          setIsFavorited(favorited);
+        }
+      } catch (e) {
+        console.error('Error checking wishlist status:', e);
+      }
+    };
+
+    if (id) checkWishlist();
+  }, [id]);
+
+  const handleToggleWishlist = async () => {
+    const token = localStorage.getItem('zivora_token');
+    if (!token) {
+      alert('Please log in to save items to your wishlist.');
+      return;
+    }
+
+    try {
+      const response = await axios.post(`${API_BASE}/wishlist/toggle`, {
+        productId: id
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.status === 'success') {
+        const items = response.data.data.wishlist.items || [];
+        const favorited = items.some(item => item.productId?._id === id || item.productId === id);
+        setIsFavorited(favorited);
+      }
+    } catch (err) {
+      console.error('Error toggling wishlist:', err);
+    }
+  };
+
   const handleAddToCart = async () => {
     try {
       const token = localStorage.getItem('zivora_token');
@@ -92,6 +148,32 @@ export default function ProductDetail() {
     }
   };
 
+  const loggedInUser = JSON.parse(localStorage.getItem('zivora_user')) || {};
+  const isRequestedByMe = product?.memoRequestedBy?.includes(loggedInUser._id || loggedInUser.id);
+
+  const handleMemoRequest = async () => {
+    const token = localStorage.getItem('zivora_token');
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+    try {
+      const response = await axios.post(`${API_BASE}/products/${product._id}/request-memo`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.status === 'success') {
+        setProduct(prev => ({
+          ...prev,
+          memoRequestedBy: [...(prev.memoRequestedBy || []), loggedInUser._id]
+        }));
+        triggerToast('Memo request submitted successfully.');
+      }
+    } catch (err) {
+      console.error('Memo request error:', err);
+      alert(err.response?.data?.message || 'Could not request memo');
+    }
+  };
+
   const handleSendInquiry = async (e) => {
     e.preventDefault();
     if (!inquiryMessage.trim()) return;
@@ -105,10 +187,9 @@ export default function ProductDetail() {
         return;
       }
 
-      // Check if conversation endpoints exist and send message
-      // We will hit the conversations/send endpoint or fallback gracefully
+      const recipientId = product.sellerId?._id || product.sellerId;
       const payload = {
-        recipientId: product.sellerId?._id || product.sellerId,
+        recipientId,
         text: `Inquiry regarding Product: ${product.title} (ID: ${product._id}). Message: ${inquiryMessage}`
       };
 
@@ -121,7 +202,13 @@ export default function ProductDetail() {
       setTimeout(() => {
         setInquirySuccess(false);
         setInquiryModalOpen(false);
-      }, 3000);
+        navigate('/messages', { 
+          state: { 
+            recipientId, 
+            recipientName: product.sellerId?.name || 'Seller' 
+          } 
+        });
+      }, 1200);
     } catch (err) {
       console.error(err);
       alert('Could not submit inquiry. Ensure you are signed in as a buyer.');
@@ -213,10 +300,17 @@ export default function ProductDetail() {
                 {product.category}
               </span>
 
+              {/* Heart Wishlist Toggle */}
+              <HeartButton
+                isFavorited={isFavorited}
+                onClick={handleToggleWishlist}
+                className="absolute top-4 right-4 z-10"
+              />
+
               {/* Yellow M symbol for Memo holds */}
               {product.status === 'on_memo' && (
                 <span 
-                  className="absolute top-4 right-4 w-6 h-6 rounded-full bg-yellow-400 text-yellow-950 flex items-center justify-center text-xs font-black shadow-md border border-yellow-300 animate-pulse animate-duration-1000"
+                  className="absolute top-4 right-16 w-6 h-6 rounded-full bg-yellow-400 text-yellow-950 flex items-center justify-center text-xs font-black shadow-md border border-yellow-300 animate-pulse animate-duration-1000"
                   title="On Memo Hold"
                 >
                   M
@@ -414,6 +508,21 @@ export default function ProductDetail() {
                   )}
                 </button>
 
+                {product.status !== 'memo' && product.status !== 'on_memo' && product.status !== 'sold' && (
+                  <button
+                    onClick={handleMemoRequest}
+                    disabled={isRequestedByMe}
+                    className={`flex-1 py-4 rounded-full text-xs font-semibold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer border ${
+                      isRequestedByMe
+                        ? 'bg-[#FAF8F6] border-[#E6DFD6] text-gray-400 cursor-not-allowed'
+                        : 'border-[#A48374] text-[#A48374] hover:bg-[#F7F3EF] bg-white'
+                    }`}
+                  >
+                    <Clock className="w-4 h-4" />
+                    {isRequestedByMe ? 'Memo Requested (Pending)' : 'Request 48h Memo'}
+                  </button>
+                )}
+
                 <button 
                   onClick={() => setOfferModalOpen(true)}
                   disabled={product.stock <= 0}
@@ -543,6 +652,21 @@ export default function ProductDetail() {
         onClose={() => setOfferModalOpen(false)}
         product={product}
       />
+
+      {/* Luxury Toast Notification */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-24 left-1/2 transform -translate-x-1/2 bg-[#3A2D28] text-white text-xs font-semibold uppercase tracking-widest px-6 py-3.5 rounded-full shadow-2xl z-[9999] border border-[#CBAD8D]/30 flex items-center gap-2"
+          >
+            <Clock className="w-3.5 h-3.5 text-[#CBAD8D]" />
+            <span>{toastMessage}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

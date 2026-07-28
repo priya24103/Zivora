@@ -3,8 +3,14 @@ import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import BuyerDashboard from './pages/BuyerDashboard';
+import MyOrders from './pages/MyOrders';
+import VerifyEmail from './pages/VerifyEmail';
+import AdminKYC from './pages/admin/AdminKYC';
 import SellerDashboard from './pages/SellerDashboard';
+import SellerOrders from './pages/SellerOrders';
 import AddProduct from './pages/AddProduct';
 import VerificationPending from './pages/VerificationPending';
 import CreateRfq from './pages/CreateRfq';
@@ -18,6 +24,10 @@ import CreateAuction from './pages/CreateAuction';
 import Auctions from './pages/Auctions';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import Wishlist from './pages/Wishlist';
+import MyRFQs from './pages/MyRFQs';
+import Messages from './pages/Messages';
+import Negotiations from './pages/Negotiations';
 import { CartProvider } from './context/CartContext';
 
 // Admin imports
@@ -56,8 +66,13 @@ function AppContent() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/buyer/dashboard" element={<BuyerDashboard />} />
+          <Route path="/my-orders" element={<MyOrders />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/seller/dashboard" element={<SellerDashboard />} />
+          <Route path="/seller/orders" element={<SellerOrders />} />
           <Route path="/seller/add-product" element={<AddProduct />} />
           <Route path="/rfq/create" element={<CreateRfq />} />
           <Route path="/verification-pending" element={<VerificationPending />} />
@@ -69,6 +84,10 @@ function AppContent() {
           <Route path="/auctions/:id" element={<LiveAuctionRoom />} />
           <Route path="/auctions" element={<Auctions />} />
           <Route path="/seller/create-auction" element={<CreateAuction />} />
+          <Route path="/wishlist" element={<Wishlist />} />
+          <Route path="/my-rfqs" element={<MyRFQs />} />
+          <Route path="/messages" element={<Messages />} />
+          <Route path="/negotiations" element={<Negotiations />} />
 
           {/* Admin routes */}
           <Route path="/admin/login" element={<AdminLogin />} />
@@ -77,6 +96,7 @@ function AppContent() {
             <Route path="users" element={<UserManagement />} />
             <Route path="inventory" element={<GlobalInventory />} />
             <Route path="auctions-rfqs" element={<AuctionsAndRfqs />} />
+            <Route path="kyc-management" element={<AdminKYC />} />
           </Route>
         </Routes>
       </main>

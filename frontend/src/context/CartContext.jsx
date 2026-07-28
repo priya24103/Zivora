@@ -106,32 +106,58 @@ export const CartProvider = ({ children }) => {
         const count = (cart.items || []).reduce((sum, item) => sum + (item.quantity || 1), 0);
         setCartCount(count);
         window.dispatchEvent(new Event('storage'));
-        return true;
+        return { success: true };
       }
     } catch (err) {
       console.error('Error removing from cart:', err);
-      setError(err.response?.data?.message || 'Could not remove item');
-      return false;
+      const message = err.response?.data?.message || 'Could not remove item';
+      setError(message);
+      return { success: false, message };
     } finally {
       setLoading(false);
     }
   };
 
-  const checkoutCart = async () => {
+  const updateQuantity = async (productId, quantity) => {
+    setLoading(true);
+    try {
+      const response = await axios.put(
+        `${API_BASE}/cart/update-quantity`,
+        { productId, quantity },
+        { headers: getHeaders() }
+      );
+      if (response.data.status === 'success') {
+        const cart = response.data.data.cart;
+        setCartItems(cart.items || []);
+        setCartTotal(cart.cartTotal || 0);
+        const count = (cart.items || []).reduce((sum, item) => sum + (item.quantity || 1), 0);
+        setCartCount(count);
+        window.dispatchEvent(new Event('storage'));
+        return { success: true };
+      }
+    } catch (err) {
+      console.error('Error updating quantity:', err);
+      const message = err.response?.data?.message || 'Could not update quantity';
+      setError(message);
+      return { success: false, message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const checkoutCart = async (selectedProductIds) => {
     setLoading(true);
     setError(null);
     try {
       const response = await axios.post(
         `${API_BASE}/cart/checkout`,
-        {},
+        { selectedProductIds },
         { headers: getHeaders() }
       );
       if (response.data.status === 'success') {
         const orderId = response.data.data.orderId;
-        // Reset local cart state
-        setCartItems([]);
-        setCartTotal(0);
-        setCartCount(0);
+        // Re-sync local cart state with backend
+        await fetchCart();
         setIsCartOpen(false);
         window.dispatchEvent(new Event('storage'));
         return orderId;
@@ -171,6 +197,7 @@ export const CartProvider = ({ children }) => {
         fetchCart,
         addToCart,
         removeFromCart,
+        updateQuantity,
         checkoutCart,
         setError
       }}

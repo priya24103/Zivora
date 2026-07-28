@@ -196,9 +196,23 @@ export default function Checkout() {
           color: '#3A2D28'
         },
         modal: {
-          ondismiss: function () {
+          ondismiss: async function () {
             // Handle edge case: user closing the Razorpay modal without paying
             setCheckoutLoading(false);
+            try {
+              const token = localStorage.getItem('zivora_token');
+              if (token && orderId) {
+                await axios.post(
+                  `${API_BASE}/orders/${orderId}/cancel`,
+                  {},
+                  { headers: { Authorization: `Bearer ${token}` } }
+                );
+              }
+            } catch (err) {
+              console.error('Error cancelling order on payment close:', err);
+            } finally {
+              navigate('/cart');
+            }
           }
         }
       };
@@ -210,6 +224,23 @@ export default function Checkout() {
       console.error('Razorpay initialization error:', err);
       setError(err.response?.data?.message || err.message || 'Failed to initiate secure checkout. Please try again.');
       setCheckoutLoading(false);
+    }
+  };
+
+  const handleBackToCart = async () => {
+    try {
+      const token = localStorage.getItem('zivora_token');
+      if (token && orderId) {
+        await axios.post(
+          `${API_BASE}/orders/${orderId}/cancel`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
+    } catch (err) {
+      console.error('Error cancelling order during exit:', err);
+    } finally {
+      navigate('/cart');
     }
   };
 
@@ -237,7 +268,7 @@ export default function Checkout() {
       <div className="max-w-5xl mx-auto">
         {/* Back link */}
         <button
-          onClick={() => navigate('/cart')}
+          onClick={handleBackToCart}
           className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#A48374] hover:text-[#3A2D28] transition-colors mb-8 cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />

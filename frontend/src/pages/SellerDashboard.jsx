@@ -8,7 +8,7 @@ import {
   ShieldCheck, 
   Diamond, 
   Gavel, 
-  DollarSign, 
+  IndianRupee, 
   LogOut, 
   PlusCircle, 
   FileText, 
@@ -31,12 +31,17 @@ import {
   Calendar,
   ChevronLeft,
   ExternalLink,
-  Handshake
+  Handshake,
+  Edit2,
+  ShoppingBag,
+  Tag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import OfferInbox from '../components/OfferInbox';
 import { io } from 'socket.io-client';
+import EditListingDrawer from '../components/EditListingDrawer';
+import Messages from './Messages';
 
 export default function SellerDashboard() {
   const navigate = useNavigate();
@@ -84,10 +89,28 @@ export default function SellerDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
+  // Dynamic Dashboard Metrics & Chart State
+  const [totalSalesAmount, setTotalSalesAmount] = useState(0);
+  const [sellerRating, setSellerRating] = useState('5.0');
+  const [closedOrdersCount, setClosedOrdersCount] = useState(0);
+  const [monthlyChartData, setMonthlyChartData] = useState([]);
+
+  const formatSalesAmount = (amount) => {
+    if (!amount || amount === 0) return '₹0';
+    if (amount >= 10000000) {
+      return `₹${(amount / 10000000).toFixed(2)} Cr`;
+    } else if (amount >= 100000) {
+      return `₹${(amount / 100000).toFixed(2)} L`;
+    }
+    return `₹${amount.toLocaleString('en-IN')}`;
+  };
+  
   // Search & Filter States
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [listingTypeTab, setListingTypeTab] = useState('all'); // 'all' | 'direct' | 'auction'
+  const [listingTypeFilter, setListingTypeFilter] = useState('All'); // 'All' | 'direct_sale' | 'auction_only'
 
   // Interactive Modals & Workflow States
   const [showAuctionModal, setShowAuctionModal] = useState(false);
@@ -95,7 +118,17 @@ export default function SellerDashboard() {
   const [auctionStartPrice, setAuctionStartPrice] = useState('');
   const [auctionDuration, setAuctionDuration] = useState('24h');
   
+  const [showEditDrawer, setShowEditDrawer] = useState(false);
+  const [selectedListing, setSelectedListing] = useState(null);
+  
   const [showRfqModal, setShowRfqModal] = useState(false);
+  const [showMemoModal, setShowMemoModal] = useState(false);
+  const [selectedMemoProduct, setSelectedMemoProduct] = useState(null);
+  const [toastMessage, setToastMessage] = useState('');
+  const triggerToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 4000);
+  };
   const [selectedRfq, setSelectedRfq] = useState(null);
   const [rfqPriceQuote, setRfqPriceQuote] = useState('');
   const [rfqMessage, setRfqMessage] = useState('');
@@ -362,13 +395,25 @@ export default function SellerDashboard() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (rfqRes.data.status === 'success') {
+        const userIdStr = (user?._id || user?.id || '').toString();
         const mappedRfqs = rfqRes.data.data.rfqs.map(r => {
-          const myQuoteEntry = r.quotes.find(q => q.sellerId && user?._id && q.sellerId.toString() === user._id.toString());
+          const myQuoteEntry = r.quotes.find(q => {
+            const qSeller = q.sellerId?._id || q.sellerId;
+            return qSeller && userIdStr && qSeller.toString() === userIdStr;
+          });
+
+          const winnerSellerId = r.winnerSeller?._id || r.winnerSeller;
+          const isWinner = (r.status === 'awarded' || r.status === 'completed') && 
+                           userIdStr && 
+                           (winnerSellerId?.toString() === userIdStr || (myQuoteEntry && myQuoteEntry.accepted));
+
           let statusVal = r.status;
           if (statusVal === 'pending' || statusVal === 'submitted' || statusVal === 'open') {
             statusVal = myQuoteEntry ? 'submitted' : 'pending';
+          } else if (statusVal === 'awarded' || statusVal === 'completed') {
+            statusVal = 'awarded';
           }
-          const isWinner = r.status === 'awarded' && user?._id && r.winnerSeller?.toString() === user._id.toString();
+
           return {
             id: r._id,
             buyer: r.buyerName,
@@ -378,7 +423,7 @@ export default function SellerDashboard() {
             status: statusVal,
             dbStatus: r.status,
             isWinner,
-            myQuote: myQuoteEntry ? `₹${myQuoteEntry.quotePrice.toLocaleString('en-IN')}` : undefined,
+            myQuote: myQuoteEntry ? `₹${Number(myQuoteEntry.quotePrice).toLocaleString('en-IN')}` : undefined,
             myMsg: myQuoteEntry ? myQuoteEntry.message : undefined
           };
         });
@@ -406,6 +451,80 @@ export default function SellerDashboard() {
           };
         });
         setConversations(mapped);
+      }
+
+      // 5. Fetch seller orders for metrics & sales chart
+      try {
+        const ordersRes = await axios.get('http://localhost:2409/api/seller/orders', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (ordersRes.data.status === 'success') {
+          const { directSaleOrders = [], auctionOrders = [], rfqOrders = [], orders = [] } = ordersRes.data.data || {};
+          const sellerOrders = [...directSaleOrders, ...auctionOrders, ...rfqOrders, ...orders];
+
+          let salesSum = 0;
+          let closedCount = 0;
+
+          sellerOrders.forEach(o => {
+            const pStatus = String(o.paymentStatus || '').toLowerCase();
+            const oStatus = String(o.orderStatus || o.fulfillmentStatus || '').toLowerCase();
+
+            if (pStatus === 'paid' && oStatus !== 'cancelled') {
+              salesSum += Number(o.totalAmount || 0);
+              closedCount += 1;
+            }
+          });
+
+          setTotalSalesAmount(salesSum);
+          setClosedOrdersCount(closedCount);
+
+          // Calculate rating dynamically based on total vs cancelled orders ratio
+          const totalOrders = sellerOrders.length;
+          if (totalOrders === 0) {
+            setSellerRating('5.0');
+          } else {
+            const cancelledCount = sellerOrders.filter(o => String(o.orderStatus || o.fulfillmentStatus || '').toLowerCase() === 'cancelled').length;
+            const successRatio = (totalOrders - cancelledCount) / totalOrders;
+            const ratingVal = Math.min(5.0, Math.max(4.0, 4.5 + (successRatio * 0.5)));
+            setSellerRating(ratingVal.toFixed(1));
+          }
+
+          // Calculate Monthly Trading Growth Chart Data for past 6 months
+          const now = new Date();
+          const monthsList = [];
+          for (let i = 5; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const monthName = d.toLocaleString('en-US', { month: 'short' });
+            const year = d.getFullYear();
+            const monthIndex = d.getMonth();
+
+            const monthOrders = sellerOrders.filter(o => {
+              const oDate = new Date(o.createdAt);
+              const pStatus = String(o.paymentStatus || '').toLowerCase();
+              return oDate.getFullYear() === year && oDate.getMonth() === monthIndex && pStatus === 'paid';
+            });
+
+            const monthRevenue = monthOrders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+            monthsList.push({
+              month: monthName,
+              revenue: monthRevenue
+            });
+          }
+
+          const maxRevenue = Math.max(...monthsList.map(m => m.revenue), 1);
+          const formattedChart = monthsList.map(m => {
+            const heightPercent = m.revenue > 0 ? `${Math.max(18, Math.round((m.revenue / maxRevenue) * 100))}%` : '10%';
+            return {
+              month: m.month,
+              val: heightPercent,
+              amount: m.revenue > 0 ? formatSalesAmount(m.revenue) : '₹0'
+            };
+          });
+
+          setMonthlyChartData(formattedChart);
+        }
+      } catch (orderErr) {
+        console.error('Error fetching seller orders for metrics:', orderErr);
       }
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
@@ -440,6 +559,26 @@ export default function SellerDashboard() {
     } catch (err) {
       console.error('Error updating status:', err);
       alert(err.response?.data?.message || 'Could not update product status.');
+    }
+  };
+
+  const handleApproveMemo = async (buyerId) => {
+    try {
+      const token = localStorage.getItem('zivora_token');
+      const response = await axios.put(`http://localhost:2409/api/seller/products/${selectedMemoProduct._id}/approve-memo`, {
+        buyerId
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.status === 'success') {
+        triggerToast('Memo hold approved successfully.');
+        setShowMemoModal(false);
+        setSelectedMemoProduct(null);
+        fetchDashboardData();
+      }
+    } catch (err) {
+      console.error('Error approving memo request:', err);
+      alert(err.response?.data?.message || 'Could not approve memo request.');
     }
   };
 
@@ -569,17 +708,65 @@ export default function SellerDashboard() {
 
   const activeConv = conversations.find(c => c.id === activeConversationId);
 
+  // Inventory Channel Counts
+  const directSaleCount = inventory.filter(item => item.listingType !== 'auction_only').length;
+  const auctionProductCount = inventory.filter(item => item.listingType === 'auction_only').length;
+
   // Filtered inventory calculations
   const filteredInventory = inventory.filter(item => {
+    const isAuction = item.listingType === 'auction_only';
+    const isDirect = !isAuction;
+
+    const matchesSectionTab = 
+      listingTypeTab === 'all' || 
+      (listingTypeTab === 'direct' && isDirect) || 
+      (listingTypeTab === 'auction' && isAuction);
+
+    const matchesTypeFilter = 
+      listingTypeFilter === 'All' || 
+      (listingTypeFilter === 'direct_sale' && isDirect) || 
+      (listingTypeFilter === 'auction_only' && isAuction);
+
     const matchesSearch = item.title?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           item.description?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = categoryFilter === 'All' || item.category === categoryFilter;
     const matchesStatus = statusFilter === 'All' || item.status === statusFilter;
-    return matchesSearch && matchesCategory && matchesStatus;
+
+    return matchesSectionTab && matchesTypeFilter && matchesSearch && matchesCategory && matchesStatus;
   });
 
   const kycStatus = user.sellerProfile?.kycStatus || 'pending';
+  const isKycVerified = kycStatus === 'approved';
   const kycRemarks = user.sellerProfile?.kycRemarks || 'Your business documents are currently being processed.';
+
+  if (user.isVerified === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: '#F1EDE6' }}>
+        <div className="w-full max-w-md bg-white border border-[#A48374]/20 rounded-3xl p-8 shadow-xl text-center font-sans">
+          <div className="w-16 h-16 rounded-full bg-[#F5F1EC] flex items-center justify-center mx-auto text-[#A48374] mb-4">
+            <Mail className="w-8 h-8" />
+          </div>
+          <h2 className="text-2xl text-[#3A2D28] mb-2" style={{ fontFamily: 'Georgia, serif', fontWeight: 300 }}>Verify Your Email</h2>
+          <p className="text-xs text-[#A48374] leading-relaxed mb-6">
+            We have sent a verification code to <strong>{user.email}</strong>. Please complete the verification process to activate your account.
+          </p>
+          <button
+            onClick={() => navigate('/verify-email')}
+            className="w-full py-3 rounded-full text-white text-xs uppercase tracking-widest font-bold hover:opacity-95 transition-opacity cursor-pointer shadow-sm"
+            style={{ backgroundColor: '#A48374' }}
+          >
+            Enter Verification Code
+          </button>
+          <button
+            onClick={handleLogout}
+            className="mt-4 text-xs font-semibold text-[#A48374] hover:text-[#3A2D28] transition-colors uppercase tracking-wider block mx-auto cursor-pointer"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen py-10 px-4 lg:px-12" style={{ backgroundColor: '#F7F3EF' }}>
@@ -612,23 +799,40 @@ export default function SellerDashboard() {
         </div>
 
         {/* ─── KYC VERIFICATION BANNER ───────────────────────────────────── */}
-        {kycStatus !== 'approved' && (
-          <motion.div 
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8 p-5 rounded-2xl border flex flex-col md:flex-row items-start gap-4 bg-[#FFFBEB] border-[#FDE68A] text-[#92400E]"
-          >
-            <div className="p-2.5 rounded-xl flex-shrink-0 bg-[#FEF3C7]">
-              <ShieldAlert className="w-5 h-5" />
+        {kycStatus === 'rejected' && (
+          <div className="mb-8 p-5 rounded-2xl border border-red-200 bg-red-50/40 flex items-start gap-4">
+            <div className="p-2.5 rounded-xl bg-red-100/50 flex-shrink-0 text-red-600">
+              <AlertCircle className="w-5 h-5" />
             </div>
             <div className="flex-1 text-xs">
-              <h3 className="font-bold uppercase tracking-wider">KYC Verification Required</h3>
-              <p className="mt-1 leading-relaxed opacity-90">
-                Your business documents (GST: {user.sellerProfile?.gstNumber}, PAN: {user.sellerProfile?.panNumber}) are being reviewed. Listing permissions are disabled until verification completes.
+              <h4 className="font-bold text-red-800 uppercase tracking-wider">eKYC Verification Rejected</h4>
+              <p className="text-[#3A2D28] mt-1 leading-relaxed">
+                Your submitted business registration proofs were rejected by our compliance administrators.
               </p>
-              {kycRemarks && <p className="mt-2 font-medium italic">Status: {kycRemarks}</p>}
+              {kycRemarks && (
+                <p className="mt-2 text-red-700 font-medium italic">
+                  Reason: {kycRemarks}
+                </p>
+              )}
+              <p className="mt-2 text-xs text-[#A48374]">
+                Please contact Zivora support to update your registration credentials.
+              </p>
             </div>
-          </motion.div>
+          </div>
+        )}
+
+        {kycStatus === 'pending' && (
+          <div className="mb-8 p-5 rounded-2xl border border-[#A48374]/30 bg-[#FBF9F6] flex items-start gap-4">
+            <div className="p-2.5 rounded-xl bg-[#F5F1EC] flex-shrink-0 text-[#A48374] animate-pulse">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div className="flex-1 text-xs">
+              <h4 className="font-bold text-[#3A2D28] uppercase tracking-wider">eKYC Under Review</h4>
+              <p className="text-[#A48374] mt-1 leading-relaxed">
+                Your business credentials (GST: {user.sellerProfile?.gstNumber}, PAN: {user.sellerProfile?.panNumber}) and uploaded proofs are currently being processed. Product listing and auction actions will be unlocked as soon as compliance approval is granted.
+              </p>
+            </div>
+          </div>
         )}
 
         {/* ─── TAB NAVIGATION SWITCH ──────────────────────────────────────── */}
@@ -675,10 +879,10 @@ export default function SellerDashboard() {
                   {/* Card 2: Total Sales */}
                   <div className="bg-white rounded-[24px] p-6 border border-[#CBAD8D]/15 shadow-[0_8px_30px_rgba(0,0,0,0.015)] flex items-center gap-5">
                     <div className="w-14 h-14 rounded-2xl bg-[#ECFDF5] flex items-center justify-center text-[#047857] flex-shrink-0">
-                      <DollarSign className="w-7 h-7" />
+                      <IndianRupee className="w-7 h-7" />
                     </div>
                     <div>
-                      <h4 className="text-3xl font-light text-[#3A2D28] tracking-tight">₹2.84 Cr</h4>
+                      <h4 className="text-3xl font-light text-[#3A2D28] tracking-tight">{loading ? '...' : formatSalesAmount(totalSalesAmount)}</h4>
                       <p className="text-[11px] font-semibold uppercase tracking-wider text-[#A48374] mt-1">Total Sales</p>
                     </div>
                   </div>
@@ -700,7 +904,7 @@ export default function SellerDashboard() {
                       <TrendingUp className="w-7 h-7" />
                     </div>
                     <div>
-                      <h4 className="text-3xl font-light text-[#3A2D28] tracking-tight">4.9</h4>
+                      <h4 className="text-3xl font-light text-[#3A2D28] tracking-tight">{loading ? '...' : sellerRating}</h4>
                       <p className="text-[11px] font-semibold uppercase tracking-wider text-[#A48374] mt-1">Seller Rating</p>
                     </div>
                   </div>
@@ -714,19 +918,19 @@ export default function SellerDashboard() {
                     <div className="bg-white rounded-[28px] p-8 border border-[#CBAD8D]/15 shadow-sm">
                       <div className="flex justify-between items-center mb-6">
                         <h3 className="text-xl font-light text-[#3A2D28]" style={{ fontFamily: 'Georgia, serif' }}>Sales & Trading Growth</h3>
-                        <span className="text-xs text-[#A48374] font-semibold tracking-wider uppercase bg-[#F7F3EF] px-3 py-1 rounded-full">Quarterly View</span>
+                        <span className="text-xs text-[#A48374] font-semibold tracking-wider uppercase bg-[#F7F3EF] px-3 py-1 rounded-full">6 Month View</span>
                       </div>
                       
-                      {/* Styled Simulated Graph Bar Chart */}
+                      {/* Styled Dynamic Graph Bar Chart */}
                       <div className="h-56 flex items-end justify-between gap-4 mt-6 border-b border-[#CBAD8D]/20 pb-4">
-                        {[
-                          { month: 'Jan', val: '40%', amount: '₹12.4L' },
-                          { month: 'Feb', val: '55%', amount: '₹18.9L' },
-                          { month: 'Mar', val: '72%', amount: '₹26.5L' },
-                          { month: 'Apr', val: '60%', amount: '₹21.0L' },
-                          { month: 'May', val: '88%', amount: '₹42.2L' },
-                          { month: 'Jun', val: '95%', amount: '₹58.7L' }
-                        ].map((d, i) => (
+                        {(monthlyChartData.length > 0 ? monthlyChartData : [
+                          { month: 'Jan', val: '10%', amount: '₹0' },
+                          { month: 'Feb', val: '10%', amount: '₹0' },
+                          { month: 'Mar', val: '10%', amount: '₹0' },
+                          { month: 'Apr', val: '10%', amount: '₹0' },
+                          { month: 'May', val: '10%', amount: '₹0' },
+                          { month: 'Jun', val: '10%', amount: '₹0' }
+                        ]).map((d, i) => (
                           <div key={i} className="flex-1 flex flex-col items-center group relative cursor-pointer">
                             {/* Hover Tooltip */}
                             <div className="absolute -top-12 bg-[#3A2D28] text-white text-[10px] font-bold py-1 px-2.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-md">
@@ -744,8 +948,8 @@ export default function SellerDashboard() {
                       </div>
                       
                       <div className="flex justify-between items-center text-xs text-[#A48374] font-medium pt-4">
-                        <p>Total Revenue Transacted: <strong className="text-[#3A2D28]">₹1.79 Cr</strong></p>
-                        <p>Total Orders Closed: <strong className="text-[#3A2D28]">28</strong></p>
+                        <p>Total Revenue Transacted: <strong className="text-[#3A2D28]">{formatSalesAmount(totalSalesAmount)}</strong></p>
+                        <p>Total Orders Closed: <strong className="text-[#3A2D28]">{closedOrdersCount}</strong></p>
                       </div>
                     </div>
 
@@ -792,8 +996,15 @@ export default function SellerDashboard() {
                       <h3 className="text-xl font-light text-[#3A2D28] mb-6" style={{ fontFamily: 'Georgia, serif' }}>Quick Actions</h3>
                       <div className="grid grid-cols-2 gap-4">
                         <button 
-                          onClick={() => navigate('/seller/add-product')}
-                          className="flex flex-col items-center justify-center p-6 bg-white rounded-2xl border border-[#CBAD8D]/20 hover:border-[#A48374] hover:bg-[#FBF9F6] transition-all group cursor-pointer"
+                          onClick={() => {
+                            if (!isKycVerified) {
+                              alert(`Access Denied. Your eKYC review status is "${kycStatus.toUpperCase()}". Listing permissions are disabled.`);
+                            } else {
+                              navigate('/seller/add-product');
+                            }
+                          }}
+                          disabled={!isKycVerified}
+                          className={`flex flex-col items-center justify-center p-6 bg-white rounded-2xl border border-[#CBAD8D]/20 transition-all group cursor-pointer ${!isKycVerified ? 'opacity-50 cursor-not-allowed' : 'hover:border-[#A48374] hover:bg-[#FBF9F6]'}`}
                         >
                           <PlusCircle className="w-8 h-8 text-[#A48374] mb-3 group-hover:scale-110 transition-transform" />
                           <span className="text-[10px] font-bold text-[#3A2D28] uppercase tracking-wider text-center">Add Product</span>
@@ -882,16 +1093,71 @@ export default function SellerDashboard() {
                     <h3 className="text-2xl text-[#3A2D28]" style={{ fontFamily: 'Georgia, serif', fontWeight: 300 }}>Inventory Catalog</h3>
                   </div>
                   <button 
-                    onClick={() => navigate('/seller/add-product')}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-[#3A2D28] text-white text-xs font-bold uppercase tracking-wider rounded-full hover:bg-[#A48374] transition-colors cursor-pointer shadow-md"
+                    onClick={() => {
+                      if (!isKycVerified) {
+                        alert(`Access Denied. Your eKYC review status is "${kycStatus.toUpperCase()}". Listing permissions are disabled.`);
+                      } else {
+                        navigate('/seller/add-product');
+                      }
+                    }}
+                    disabled={!isKycVerified}
+                    className={`inline-flex items-center gap-2 px-6 py-3 text-white text-xs font-bold uppercase tracking-wider rounded-full transition-colors shadow-md ${!isKycVerified ? 'bg-gray-400 opacity-60 cursor-not-allowed' : 'bg-[#3A2D28] hover:bg-[#A48374] cursor-pointer'}`}
                   >
                     <PlusCircle className="w-4 h-4" />
                     List New Diamond
                   </button>
                 </div>
 
+                {/* Sub-Navigation Section Tabs: All vs Direct Sales vs Auction Products */}
+                <div className="flex border-b border-[#CBAD8D]/15 mb-6 overflow-x-auto gap-2">
+                  <button
+                    onClick={() => setListingTypeTab('all')}
+                    className={`flex items-center gap-2 py-3 px-5 text-xs uppercase tracking-wider font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                      listingTypeTab === 'all'
+                        ? 'border-[#3A2D28] text-[#3A2D28]'
+                        : 'border-transparent text-[#A48374] hover:text-[#3A2D28]'
+                    }`}
+                  >
+                    <ShoppingBag className="w-4 h-4" />
+                    All Products
+                    <span className="ml-1.5 px-2 py-0.5 text-[10px] rounded-full bg-[#3A2D28]/10 text-[#3A2D28]">
+                      {inventory.length}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setListingTypeTab('direct')}
+                    className={`flex items-center gap-2 py-3 px-5 text-xs uppercase tracking-wider font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                      listingTypeTab === 'direct'
+                        ? 'border-[#3A2D28] text-[#3A2D28]'
+                        : 'border-transparent text-[#A48374] hover:text-[#3A2D28]'
+                    }`}
+                  >
+                    <Tag className="w-4 h-4" />
+                    Direct Sales Inventory
+                    <span className="ml-1.5 px-2 py-0.5 text-[10px] rounded-full bg-[#3A2D28]/10 text-[#3A2D28]">
+                      {directSaleCount}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setListingTypeTab('auction')}
+                    className={`flex items-center gap-2 py-3 px-5 text-xs uppercase tracking-wider font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                      listingTypeTab === 'auction'
+                        ? 'border-[#3A2D28] text-[#3A2D28]'
+                        : 'border-transparent text-[#A48374] hover:text-[#3A2D28]'
+                    }`}
+                  >
+                    <Gavel className="w-4 h-4" />
+                    Auction Products
+                    <span className="ml-1.5 px-2 py-0.5 text-[10px] rounded-full bg-amber-100 text-amber-800 font-bold">
+                      {auctionProductCount}
+                    </span>
+                  </button>
+                </div>
+
                 {/* Filter and Search Bar Row */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-6">
                   {/* Search Bar */}
                   <div className="md:col-span-2 relative flex items-center">
                     <Search className="absolute left-4 w-4 h-4 text-[#A48374]" />
@@ -902,6 +1168,19 @@ export default function SellerDashboard() {
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="w-full pl-11 pr-4 py-2.5 rounded-full text-xs border border-[#CBAD8D]/20 focus:outline-none focus:border-[#A48374] bg-[#F7F3EF]/30"
                     />
+                  </div>
+
+                  {/* Listing Channel Filter */}
+                  <div className="relative">
+                    <select
+                      value={listingTypeFilter}
+                      onChange={(e) => setListingTypeFilter(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-full text-xs border border-[#CBAD8D]/20 focus:outline-none focus:border-[#A48374] bg-white text-[#3A2D28] appearance-none cursor-pointer"
+                    >
+                      <option value="All">All Channels</option>
+                      <option value="direct_sale">Direct Sales</option>
+                      <option value="auction_only">Auction Products</option>
+                    </select>
                   </div>
 
                   {/* Category Filter */}
@@ -938,8 +1217,9 @@ export default function SellerDashboard() {
                     <thead>
                       <tr className="border-b border-[#CBAD8D]/20 text-[#A48374] text-xs uppercase tracking-wider font-semibold">
                         <th className="pb-3 pl-2">Stone / Jewelry Info</th>
+                        <th className="pb-3">Listing Channel</th>
                         <th className="pb-3">Base Price</th>
-                        <th className="pb-3">Type</th>
+                        <th className="pb-3">Category</th>
                         <th className="pb-3">Stock</th>
                         <th className="pb-3">Listing Status</th>
                         <th className="pb-3 text-right pr-2">Actions</th>
@@ -948,13 +1228,13 @@ export default function SellerDashboard() {
                     <tbody className="divide-y divide-[#CBAD8D]/10">
                       {loading ? (
                         <tr>
-                          <td colSpan="6" className="py-12 text-center text-xs text-[#A48374] italic">
+                          <td colSpan="7" className="py-12 text-center text-xs text-[#A48374] italic">
                             Connecting to database...
                           </td>
                         </tr>
                       ) : filteredInventory.length === 0 ? (
                         <tr>
-                          <td colSpan="6" className="py-12 text-center text-xs text-[#A48374] italic">
+                          <td colSpan="7" className="py-12 text-center text-xs text-[#A48374] italic">
                             No listings match your search criteria.
                           </td>
                         </tr>
@@ -963,9 +1243,11 @@ export default function SellerDashboard() {
                           const statusColors = {
                             available: { label: 'Available', bg: 'rgba(16,185,129,0.1)', color: '#10B981' },
                             on_memo: { label: 'On Memo', bg: 'rgba(203,173,141,0.25)', color: '#A48374' },
+                            memo: { label: 'On Memo', bg: 'rgba(203,173,141,0.25)', color: '#A48374' },
                             sold: { label: 'Sold', bg: '#F1EDE6', color: '#6B5549' }
                           };
                           const badge = statusColors[item.status] || { label: item.status, bg: '#F1EDE6', color: '#6B5549' };
+                          const isAuctionItem = item.listingType === 'auction_only';
                           
                           return (
                             <tr key={item._id} className="text-[#3A2D28] hover:bg-[#FBF9F6] transition-colors">
@@ -982,7 +1264,29 @@ export default function SellerDashboard() {
                                       : `${item.jewelryType} • ${item.metalType} • ${item.weightGrams}g`
                                     }
                                   </p>
+                                  {item.memoRequestedBy && item.memoRequestedBy.length > 0 && (
+                                    <div className="mt-1.5 flex items-center">
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-[#A48374]/15 text-[#3A2D28] text-[9px] font-bold uppercase tracking-widest rounded-full border border-[#A48374]/20 shadow-xs animate-pulse">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-[#A48374] inline-block" />
+                                        {item.memoRequestedBy.length} {item.memoRequestedBy.length === 1 ? 'Memo Request' : 'Memo Requests'}
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
+                              </td>
+                              {/* Listing Channel */}
+                              <td className="py-4">
+                                {isAuctionItem ? (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9.5px] font-bold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200/80 shadow-xs">
+                                    <Gavel className="w-3 h-3 text-amber-600" />
+                                    Auction
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9.5px] font-bold uppercase tracking-wider bg-[#F7F3EF] text-[#3A2D28] border border-[#CBAD8D]/30 shadow-xs">
+                                    <Tag className="w-3 h-3 text-[#A48374]" />
+                                    Direct Sale
+                                  </span>
+                                )}
                               </td>
                               {/* Price */}
                               <td className="py-4 font-semibold text-xs md:text-sm">
@@ -1008,6 +1312,19 @@ export default function SellerDashboard() {
                               {/* Interactive Actions */}
                               <td className="py-4 text-right pr-2">
                                 <div className="inline-flex items-center gap-2">
+                                  {item.memoRequestedBy && item.memoRequestedBy.length > 0 && (
+                                    <button
+                                      onClick={() => {
+                                        setSelectedMemoProduct(item);
+                                        setShowMemoModal(true);
+                                      }}
+                                      className="px-3 py-1 bg-[#A48374] hover:bg-[#3A2D28] text-white text-[10px] font-bold uppercase tracking-wider rounded-full transition-colors cursor-pointer"
+                                      title="Review Memo Requests"
+                                    >
+                                      Review Memos
+                                    </button>
+                                  )}
+
                                   {/* Quick status cycle toggle */}
                                   <select 
                                     value={item.status}
@@ -1018,6 +1335,27 @@ export default function SellerDashboard() {
                                     <option value="on_memo">Send On Memo</option>
                                     <option value="sold">Mark Sold</option>
                                   </select>
+
+                                  {/* Edit Listing */}
+                                  <button
+                                    onClick={() => {
+                                      if (item.listingType === 'auction_only') {
+                                        const auc = auctions.find(a => a.productId?._id === item._id || a.productId === item._id);
+                                        if (auc) {
+                                          setSelectedListing({ ...auc, isAuction: true });
+                                        } else {
+                                          setSelectedListing({ ...item, isProduct: true });
+                                        }
+                                      } else {
+                                        setSelectedListing({ ...item, isProduct: true });
+                                      }
+                                      setShowEditDrawer(true);
+                                    }}
+                                    className="p-1.5 text-xs font-semibold text-[#A48374] hover:text-[#3A2D28] border border-[#CBAD8D]/30 hover:bg-[#F7F3EF] rounded-md transition-colors"
+                                    title="Edit Listing"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
 
                                   {/* Launch auction button */}
                                   {item.status === 'available' && (
@@ -1204,12 +1542,24 @@ export default function SellerDashboard() {
                               </div>
                             </div>
 
-                            <button 
-                              onClick={() => setSelectedManageAuction(auc)}
-                              className="w-full py-3 bg-[#FAF8F6] hover:bg-[#A48374] hover:text-white border border-[#CBAD8D]/30 hover:border-transparent text-[10px] font-bold uppercase tracking-widest text-[#A48374] rounded-full transition-all cursor-pointer shadow-xs"
-                            >
-                              Manage Auction
-                            </button>
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={() => setSelectedManageAuction(auc)}
+                                className="flex-1 py-3 bg-[#FAF8F6] hover:bg-[#A48374] hover:text-white border border-[#CBAD8D]/30 hover:border-transparent text-[10px] font-bold uppercase tracking-widest text-[#A48374] rounded-full transition-all cursor-pointer shadow-xs"
+                              >
+                                Manage Auction
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedListing({ ...auc, isAuction: true });
+                                  setShowEditDrawer(true);
+                                }}
+                                className="px-3.5 py-3 bg-[#FAF8F6] hover:bg-[#A48374] hover:text-white border border-[#CBAD8D]/30 hover:border-transparent text-[#A48374] rounded-full transition-all cursor-pointer shadow-xs flex items-center justify-center"
+                                title="Edit Auction Settings"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );
@@ -1495,11 +1845,11 @@ export default function SellerDashboard() {
                           <span>•</span>
                           <span>Received: {rfq.date}</span>
                         </div>
-                        {rfq.status === 'submitted' && (
+                        {(rfq.status === 'submitted' || rfq.myQuote) && (
                           <div className="mt-3 p-3 bg-white border border-[#CBAD8D]/20 rounded-xl text-xs">
-                            <span className="font-bold text-[#A48374] uppercase tracking-wider text-[9px]">My Submitted Offer</span>
+                            <span className="font-bold text-[#A48374] uppercase tracking-wider text-[9px]">{rfq.isWinner ? 'Winning Offer' : 'My Submitted Offer'}</span>
                             <p className="font-semibold text-[#3A2D28] mt-0.5">Quote Price: {rfq.myQuote}</p>
-                            <p className="text-[10px] text-[#A48374] mt-1 font-medium">Remarks: "{rfq.myMsg}"</p>
+                            {rfq.myMsg && <p className="text-[10px] text-[#A48374] mt-1 font-medium">Remarks: "{rfq.myMsg}"</p>}
                           </div>
                         )}
                       </div>
@@ -1534,112 +1884,8 @@ export default function SellerDashboard() {
 
             {/* 5. MESSAGES TAB */}
             {currentTab === 'messages' && (
-              <div className="bg-white rounded-[28px] border border-[#CBAD8D]/15 shadow-sm overflow-hidden flex flex-col md:flex-row h-[600px]">
-                
-                {/* Conversations List */}
-                <div className="w-full md:w-80 border-r border-[#CBAD8D]/10 flex flex-col">
-                  <div className="p-4 border-b border-[#CBAD8D]/10">
-                    <div className="relative">
-                      <Search className="absolute left-3.5 w-3.5 h-3.5 text-[#A48374]" />
-                      <input 
-                        type="text" 
-                        placeholder="Search chats..." 
-                        className="w-full pl-9 pr-4 py-2 border border-[#CBAD8D]/15 rounded-full text-xs focus:outline-none bg-[#F7F3EF]/30"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex-1 overflow-y-auto divide-y divide-[#CBAD8D]/5">
-                    {conversations.map(c => (
-                      <button
-                        key={c.id}
-                        onClick={() => setActiveConversationId(c.id)}
-                        className={`w-full p-4 text-left flex items-start gap-3 transition-colors cursor-pointer ${activeConversationId === c.id ? 'bg-[#F7F3EF]/50' : 'hover:bg-[#FBF9F6]'}`}
-                      >
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-semibold uppercase flex-shrink-0" style={{ background: 'linear-gradient(135deg, #3A2D28, #A48374)' }}>
-                          {c.name[0]}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-baseline mb-0.5">
-                            <h4 className="font-bold text-xs text-[#3A2D28] truncate">{c.name}</h4>
-                            <span className="text-[9px] text-[#CBAD8D] font-semibold">{c.time}</span>
-                          </div>
-                          <p className={`text-[10px] truncate ${c.unread && c.id !== activeConversationId ? 'font-bold text-[#3A2D28]' : 'text-[#A48374]'}`}>
-                            {c.lastMsg}
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Active Chat Window */}
-                <div className="flex-1 flex flex-col bg-[#FBF9F6]/50">
-                  {activeConv ? (
-                    <>
-                      {/* Active Contact Header */}
-                      <div className="p-4 border-b border-[#CBAD8D]/10 bg-white flex justify-between items-center">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-semibold uppercase" style={{ background: 'linear-gradient(135deg, #3A2D28, #A48374)' }}>
-                            {activeConv.name[0]}
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-xs text-[#3A2D28]">{activeConv.name}</h4>
-                            <span className="text-[9px] text-green-600 font-semibold uppercase tracking-wider flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Online
-                            </span>
-                          </div>
-                        </div>
-                        <span className="text-[10px] text-[#A48374] font-medium">B2B Chat Link</span>
-                      </div>
-
-                      {/* Chat Messages Log */}
-                      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                        {activeConv.messages.map((m, idx) => (
-                          <div 
-                            key={idx} 
-                            className={`flex ${m.sender === 'seller' ? 'justify-end' : 'justify-start'}`}
-                          >
-                            <div 
-                              className={`max-w-[70%] p-3.5 rounded-2xl text-xs leading-relaxed ${m.sender === 'seller' ? 'bg-[#3A2D28] text-white rounded-tr-none' : 'bg-white text-[#3A2D28] border border-[#CBAD8D]/10 rounded-tl-none'}`}
-                            >
-                              <p>{m.text}</p>
-                            </div>
-                          </div>
-                        ))}
-                        {isTyping && (
-                          <div className="flex justify-start">
-                            <div className="bg-white border border-[#CBAD8D]/10 p-3 rounded-2xl rounded-tl-none text-xs text-[#A48374] italic">
-                              {activeConv.name} is typing...
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Message Input Form */}
-                      <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-[#CBAD8D]/10 flex gap-2">
-                        <input
-                          type="text"
-                          value={replyText}
-                          onChange={(e) => setReplyText(e.target.value)}
-                          placeholder="Type your message details here..."
-                          className="flex-1 px-4 py-3 border border-[#CBAD8D]/15 rounded-full text-xs focus:outline-none focus:border-[#A48374] bg-[#F7F3EF]/30"
-                        />
-                        <button
-                          type="submit"
-                          className="p-3 bg-[#3A2D28] hover:bg-[#A48374] text-white rounded-full transition-colors flex items-center justify-center cursor-pointer shadow-sm"
-                        >
-                          <Send className="w-4 h-4" />
-                        </button>
-                      </form>
-                    </>
-                  ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-[#A48374] italic">
-                      <MessageSquare className="w-10 h-10 mb-2 opacity-50" />
-                      <p className="text-xs">Select a buyer thread to start negotiating deals.</p>
-                    </div>
-                  )}
-                </div>
-
+              <div className="w-full">
+                <Messages />
               </div>
             )}
 
@@ -1871,6 +2117,105 @@ export default function SellerDashboard() {
             </div>
           </div>
         )}
+
+        {/* Edit Listing Side Drawer */}
+        <EditListingDrawer
+          isOpen={showEditDrawer}
+          onClose={() => {
+            setShowEditDrawer(false);
+            setSelectedListing(null);
+          }}
+          selectedListing={selectedListing}
+          onSaveSuccess={fetchDashboardData}
+        />
+
+        {/* Review Memo Requests Modal */}
+        {showMemoModal && selectedMemoProduct && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            {/* Overlay */}
+            <div 
+              onClick={() => {
+                setShowMemoModal(false);
+                setSelectedMemoProduct(null);
+              }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm" 
+            />
+
+            {/* Modal Content */}
+            <div className="relative bg-[#F1EDE6] rounded-[32px] w-full max-w-lg p-6 md:p-10 border border-[#CBAD8D]/25 shadow-2xl z-10 animate-in zoom-in-95 duration-200">
+              <button 
+                onClick={() => {
+                  setShowMemoModal(false);
+                  setSelectedMemoProduct(null);
+                }}
+                className="absolute right-6 top-6 p-1.5 hover:bg-gray-200/50 rounded-full cursor-pointer text-[#3A2D28]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="text-center mb-6">
+                <span className="text-[9px] uppercase tracking-[0.25em] text-[#A48374] font-bold block mb-1">Approval Center</span>
+                <h3 className="font-serif text-2xl text-[#3A2D28]">Review Memo Requests</h3>
+                <p className="text-[11px] text-[#A48374] mt-1.5 max-w-sm mx-auto leading-relaxed">
+                  Approve a 48-hour memo hold for one of the buyers below. This will temporarily lock the item status to "On Memo" for 48 hours.
+                </p>
+              </div>
+
+              {/* Product Info Summary */}
+              <div className="bg-white p-4 rounded-2xl border border-[#CBAD8D]/20 flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 rounded-xl bg-[#F7F3EF] border border-[#E6DFD6] overflow-hidden flex-shrink-0 flex items-center justify-center text-[#A48374]">
+                  <Diamond className="w-5 h-5" />
+                </div>
+                <div>
+                  <h5 className="text-xs text-[#3A2D28] font-bold line-clamp-1">{selectedMemoProduct.title}</h5>
+                  <p className="text-[10px] text-[#A48374] font-medium mt-0.5">
+                    {selectedMemoProduct.category} • ₹{selectedMemoProduct.price.toLocaleString('en-IN')}
+                  </p>
+                </div>
+              </div>
+
+              {/* Buyers List */}
+              <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                {selectedMemoProduct.memoRequestedBy && selectedMemoProduct.memoRequestedBy.length > 0 ? (
+                  selectedMemoProduct.memoRequestedBy.map((buyer) => (
+                    <div 
+                      key={buyer._id || buyer.id} 
+                      className="bg-white p-4 rounded-xl border border-[#CBAD8D]/15 flex items-center justify-between gap-4 hover:shadow-xs transition-all"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-[#3A2D28] font-bold truncate">{buyer.name || 'Anonymous Buyer'}</p>
+                        <p className="text-[10px] text-[#A48374] truncate mt-0.5 select-all">{buyer.email || 'no-email@zivora.com'}</p>
+                      </div>
+                      <button
+                        onClick={() => handleApproveMemo(buyer._id || buyer.id)}
+                        className="px-4 py-2 bg-[#3A2D28] hover:bg-[#A48374] text-white text-[10px] font-bold uppercase tracking-wider rounded-full transition-all cursor-pointer shadow-xs whitespace-nowrap"
+                      >
+                        Approve Memo
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-center text-xs text-[#A48374] italic py-4">No pending memo requests found.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Luxury Toast Notification */}
+        <AnimatePresence>
+          {toastMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -50, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              className="fixed top-24 left-1/2 transform -translate-x-1/2 bg-[#3A2D28] text-white text-xs font-semibold uppercase tracking-widest px-6 py-3.5 rounded-full shadow-2xl z-[9999] border border-[#CBAD8D]/30 flex items-center gap-2"
+            >
+              <Check className="w-3.5 h-3.5 text-green-400" />
+              <span>{toastMessage}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
       </div>
     </div>
