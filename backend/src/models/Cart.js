@@ -15,6 +15,23 @@ const cartItemSchema = new mongoose.Schema({
     required: [true, 'Quantity is required'],
     min: [1, 'Quantity must be at least 1'],
     default: 1
+  },
+  itemType: {
+    type: String,
+    enum: ['STANDARD', 'WON_AUCTION', 'ACCEPTED_RFQ'],
+    default: 'STANDARD'
+  },
+  isMandatory: {
+    type: Boolean,
+    default: false
+  },
+  agreedPrice: {
+    type: Number,
+    required: false
+  },
+  referenceId: {
+    type: mongoose.Schema.Types.ObjectId,
+    required: false
   }
 }, { _id: false });
 

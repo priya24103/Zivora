@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const RFQ = require('../models/RFQ');
+const { ensureRFQOrder } = require('../utils/rfqOrderHelper');
 
 class MinHeap {
   constructor() {
@@ -108,6 +109,9 @@ const processExpiredRFQs = async () => {
           rfq.winningQuoteId = winningQuote._id;
           rfq.status = 'awarded';
           console.log(`[RFQ Cron Job] RFQ ${rfq._id} successfully awarded to Seller ${winningQuote.sellerId} (Quote: ₹${winningQuote.quotePrice})`);
+          
+          // Automatically create pending order record for the winner seller
+          await ensureRFQOrder(rfq, winningQuote);
         } else {
           rfq.status = 'closed';
           console.log(`[RFQ Cron Job] RFQ ${rfq._id} set to closed.`);

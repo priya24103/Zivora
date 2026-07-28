@@ -13,4 +13,9 @@ router.post('/resend-otp', authController.resendOtp);
 // Login endpoint
 router.post('/login', authController.login);
 
+// Forgot & Reset Password endpoints
+router.post('/forgot-password', authController.forgotPassword);
+router.post('/verify-reset-code', authController.verifyResetCode);
+router.post('/reset-password', authController.resetPassword);
+
 module.exports = router;

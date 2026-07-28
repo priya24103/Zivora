@@ -15,12 +15,36 @@ const orderRoutes = require('./routes/order.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const offerRoutes = require('./routes/offer.routes');
 const adminRoutes = require('./routes/admin.routes');
+const sellerOrderRoutes = require('./routes/sellerOrder.routes');
+const sellerRoutes = require('./routes/seller.routes');
+const wishlistRoutes = require('./routes/wishlist.routes');
 
 const app = express();
 
 // Global Middlewares
 app.use(helmet()); // Security headers
-app.use(cors()); // Enable CORS
+
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+  process.env.CLIENT_URL
+].filter(Boolean);
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
+}));
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 app.use(morgan('dev')); // Request logging
@@ -31,12 +55,16 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/auctions', auctionRoutes);
 app.use('/api/rfq', rfqRoutes);
+app.use('/api/rfqs', rfqRoutes);
 app.use('/api/conversations', conversationRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/offers', offerRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/seller/orders', sellerOrderRoutes);
+app.use('/api/seller', sellerRoutes);
+app.use('/api/wishlist', wishlistRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

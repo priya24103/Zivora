@@ -147,7 +147,7 @@ exports.createOrder = async (req, res, next) => {
 // @access  Private
 exports.verifyPayment = async (req, res, next) => {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, shippingAddress } = req.body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId, shippingAddress } = req.body;
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return res.status(400).json({
@@ -259,10 +259,11 @@ exports.verifyPayment = async (req, res, next) => {
 
       await order.save();
 
-      // Clear user's Cart
+      // Clear only checked-out items from user's Cart (leaving unselected items untouched)
       const cart = await Cart.findOne({ buyerId: req.user._id });
       if (cart) {
-        cart.items = [];
+        const orderProductIds = order.items.map(item => item.productId.toString());
+        cart.items = cart.items.filter(item => !orderProductIds.includes(item.productId.toString()));
         await cart.save();
       }
 
@@ -387,6 +388,9 @@ exports.verifyPayment = async (req, res, next) => {
 
   } catch (error) {
     console.error('Error verifying Razorpay payment:', error);
-    next(error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Internal server error during payment verification.'
+    });
   }
 };

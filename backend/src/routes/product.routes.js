@@ -17,6 +17,9 @@ router.get('/', productController.getAllProducts);
 // GET /api/products/:id - Get a single product by ID
 router.get('/:id', productController.getProductById);
 
+// POST /api/products/:id/request-memo - Request 48h memo (buyer)
+router.post('/:id/request-memo', protect, productController.requestMemo);
+
 // PATCH /api/products/:id/status - Update status (seller only)
 router.patch('/:id/status', protect, restrictTo('seller'), productController.updateProductStatus);
 

@@ -10,8 +10,9 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: '*', 
-    methods: ['GET', 'POST']
+    origin: (origin, callback) => callback(null, true),
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    credentials: true
   }
 });
 
@@ -23,12 +24,14 @@ registerAuctionSocket(io);
 
 const rfqCron = require('./jobs/rfqCron');
 const auctionExpiry = require('./jobs/auctionExpiry');
+const memoExpiry = require('./jobs/memoExpiry');
 
 const startServer = async () => {
   try {
     await connectDB();
     rfqCron.init();
     auctionExpiry.init();
+    memoExpiry.init();
     server.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });

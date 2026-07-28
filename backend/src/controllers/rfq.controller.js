@@ -1,4 +1,6 @@
 const RFQ = require('../models/RFQ');
+const Cart = require('../models/Cart');
+const { ensureRFQOrder } = require('../utils/rfqOrderHelper');
 
 // @desc    Create a Request for Quote (RFQ)
 // @route   POST /api/rfq/create
@@ -45,7 +47,10 @@ exports.createRFQ = async (req, res, next) => {
 exports.getBuyerRFQs = async (req, res, next) => {
   try {
     const buyerId = req.user._id;
-    const rfqs = await RFQ.find({ buyerId }).sort({ createdAt: -1 });
+    const rfqs = await RFQ.find({ buyerId })
+      .populate('quotes.sellerId', 'name company')
+      .populate('quotes.productId')
+      .sort({ createdAt: -1 });
 
     res.status(200).json({
       status: 'success',
@@ -151,6 +156,104 @@ exports.retractQuote = async (req, res, next) => {
       status: 'success',
       message: 'Quote retracted successfully',
       data: { rfq }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Accept a quote for an RFQ
+// @route   POST /api/rfq/:rfqId/accept-quote
+// @access  Private (Buyer only)
+exports.acceptQuote = async (req, res, next) => {
+  try {
+    const { rfqId } = req.params;
+    const { quoteId } = req.body;
+
+    if (!quoteId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Quote ID is required to accept a quote'
+      });
+    }
+
+    const rfq = await RFQ.findById(rfqId);
+    if (!rfq) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'RFQ request not found'
+      });
+    }
+
+    // Strict ownership validation
+    if (rfq.buyerId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Access denied. You do not own this RFQ'
+      });
+    }
+
+    // Ensure status is open/submitted for acceptance
+    if (rfq.status === 'completed' || rfq.status === 'closed' || rfq.status === 'awarded') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'RFQ is no longer open for quote acceptance'
+      });
+    }
+
+    // Find the quote
+    const quote = rfq.quotes.id(quoteId);
+    if (!quote) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Quote not found'
+      });
+    }
+
+    // Mark quote as accepted
+    quote.accepted = true;
+    rfq.status = 'awarded';
+    rfq.winnerSeller = quote.sellerId;
+    rfq.winningQuoteId = quote._id;
+
+    await rfq.save();
+
+    // Create pending Order record for the seller
+    await ensureRFQOrder(rfq, quote);
+
+    // Push item into the buyer's Cart
+    let cart = await Cart.findOne({ buyerId: req.user._id });
+    if (!cart) {
+      cart = new Cart({ buyerId: req.user._id, items: [] });
+    }
+
+    const itemIdx = cart.items.findIndex(item => item.productId.toString() === quote.productId.toString());
+    if (itemIdx === -1) {
+      cart.items.push({
+        productId: quote.productId,
+        quantity: 1,
+        priceAtAdd: quote.quotePrice,
+        itemType: 'ACCEPTED_RFQ',
+        isMandatory: true,
+        agreedPrice: quote.quotePrice,
+        referenceId: rfq._id
+      });
+    } else {
+      cart.items[itemIdx].priceAtAdd = quote.quotePrice;
+      cart.items[itemIdx].itemType = 'ACCEPTED_RFQ';
+      cart.items[itemIdx].isMandatory = true;
+      cart.items[itemIdx].agreedPrice = quote.quotePrice;
+      cart.items[itemIdx].referenceId = rfq._id;
+    }
+    await cart.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Quote accepted successfully. The item has been placed in your Cart.',
+      data: {
+        rfq,
+        cartId: cart._id
+      }
     });
   } catch (error) {
     next(error);

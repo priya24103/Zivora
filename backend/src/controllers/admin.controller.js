@@ -2,6 +2,7 @@ const User = require('../models/User');
 const { Product } = require('../models/Product');
 const Auction = require('../models/Auction');
 const RFQ = require('../models/RFQ');
+const Order = require('../models/Order');
 const jwt = require('jsonwebtoken');
 const { sendKycResultEmail } = require('../utils/sendEmail');
 
@@ -341,6 +342,109 @@ exports.takeKycAction = async (req, res, next) => {
       message: `KYC application successfully ${action === 'approve' ? 'approved' : 'rejected'}.`,
       data: {
         seller
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get dashboard analytics metrics and sales chart data
+ * @route   GET /api/admin/analytics
+ * @access  Admin Only
+ */
+exports.getAnalytics = async (req, res, next) => {
+  try {
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+    sixMonthsAgo.setDate(1);
+    sixMonthsAgo.setHours(0, 0, 0, 0);
+
+    const [revenueRes, userCountsRes, activeAuctions, monthlySales] = await Promise.all([
+      // Metric 1: Total Revenue (paid orders sum)
+      Order.aggregate([
+        { $match: { paymentStatus: 'paid' } },
+        { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+      ]),
+      // Metric 2: User counts grouped by role
+      User.aggregate([
+        { $group: { _id: '$role', count: { $sum: 1 } } }
+      ]),
+      // Metric 3: Active Auctions count
+      Auction.countDocuments({ status: 'active' }),
+      // Metric 4: Sales by month over past 6 months
+      Order.aggregate([
+        { 
+          $match: { 
+            paymentStatus: 'paid',
+            createdAt: { $gte: sixMonthsAgo }
+          } 
+        },
+        {
+          $group: {
+            _id: {
+              year: { $year: '$createdAt' },
+              month: { $month: '$createdAt' }
+            },
+            revenue: { $sum: '$totalAmount' }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            year: '$_id.year',
+            month: '$_id.month',
+            revenue: 1
+          }
+        },
+        {
+          $sort: { year: 1, month: 1 }
+        }
+      ])
+    ]);
+
+    // Parse Metric 1: Revenue
+    const totalRevenue = revenueRes[0]?.total || 0;
+
+    // Parse Metric 2: User Counts
+    const userCounts = {
+      total: 0,
+      buyer: 0,
+      seller: 0,
+      admin: 0
+    };
+    userCountsRes.forEach(item => {
+      if (userCounts.hasOwnProperty(item._id)) {
+        userCounts[item._id] = item.count;
+        userCounts.total += item.count;
+      }
+    });
+
+    // Populate missing months with 0 revenue for Recharts Sales by Month
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const salesChartData = [];
+    
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const m = d.getMonth(); // 0 - 11
+      const y = d.getFullYear();
+      
+      const match = monthlySales.find(item => item.month === (m + 1) && item.year === y);
+      salesChartData.push({
+        name: `${monthNames[m]} ${y.toString().substring(2)}`,
+        revenue: match ? match.revenue : 0
+      });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        totalRevenue,
+        userCounts,
+        activeAuctions,
+        salesChartData
       }
     });
   } catch (error) {

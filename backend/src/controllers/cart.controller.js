@@ -2,6 +2,59 @@ const Cart = require('../models/Cart');
 const { Product } = require('../models/Product');
 const Auction = require('../models/Auction');
 const Order = require('../models/Order');
+const RFQ = require('../models/RFQ');
+
+// Helper to calculate price & metadata overriding with completed auction or accepted RFQ quote
+const getCartItemMetadata = async (product, userId) => {
+  if (!product) return { price: 0, itemType: 'STANDARD', isMandatory: false };
+  
+  const completedAuction = await Auction.findOne({
+    productId: product._id,
+    highestBidder: userId,
+    status: 'completed'
+  });
+
+  if (completedAuction) {
+    return {
+      price: completedAuction.currentHighestBid,
+      itemType: 'WON_AUCTION',
+      isMandatory: true,
+      agreedPrice: completedAuction.currentHighestBid,
+      referenceId: completedAuction._id
+    };
+  }
+
+  const acceptedRfq = await RFQ.findOne({
+    buyerId: userId,
+    status: { $in: ['completed', 'awarded'] },
+    "quotes.productId": product._id,
+    "quotes.accepted": true
+  });
+
+  if (acceptedRfq) {
+    const acceptedQuote = acceptedRfq.quotes.find(q => q.productId.toString() === product._id.toString() && q.accepted === true);
+    if (acceptedQuote) {
+      return {
+        price: acceptedQuote.quotePrice,
+        itemType: 'ACCEPTED_RFQ',
+        isMandatory: true,
+        agreedPrice: acceptedQuote.quotePrice,
+        referenceId: acceptedRfq._id
+      };
+    }
+  }
+
+  return {
+    price: product.price,
+    itemType: 'STANDARD',
+    isMandatory: false
+  };
+};
+
+const getProductPriceForUser = async (product, userId) => {
+  const meta = await getCartItemMetadata(product, userId);
+  return meta.price;
+};
 
 // @desc    Fetch the logged-in buyer's cart
 // @route   GET /api/cart
@@ -10,7 +63,7 @@ exports.getCart = async (req, res, next) => {
   try {
     let cart = await Cart.findOne({ buyerId: req.user._id }).populate({
       path: 'items.productId',
-      select: 'title price images category status stock'
+      select: 'title price images category status stock listingType'
     });
 
     if (!cart) {
@@ -29,20 +82,31 @@ exports.getCart = async (req, res, next) => {
     // Filter out items where the product no longer exists
     cart.items = cart.items.filter(item => item.productId != null);
 
-    // Calculate dynamic total on the fly, overriding prices for won auctions
+    // Calculate dynamic total on the fly and enrich metadata
     let cartTotal = 0;
+    const enrichedItems = [];
     for (const item of cart.items) {
       const product = item.productId;
-      const completedAuction = await Auction.findOne({
-        productId: product._id,
-        highestBidder: req.user._id,
-        status: 'completed'
-      });
+      if (product) {
+        const meta = await getCartItemMetadata(product, req.user._id);
+        product.price = meta.price;
 
-      if (completedAuction) {
-        product.price = completedAuction.currentHighestBid;
+        const rawItem = item.toObject ? item.toObject() : { ...item };
+        const isMandatory = item.isMandatory || meta.isMandatory;
+        const itemType = item.itemType && item.itemType !== 'STANDARD' ? item.itemType : meta.itemType;
+
+        const enrichedItem = {
+          ...rawItem,
+          itemType,
+          isMandatory,
+          agreedPrice: meta.agreedPrice || meta.price,
+          referenceId: item.referenceId || meta.referenceId || null,
+          quantity: isMandatory ? 1 : item.quantity
+        };
+
+        cartTotal += meta.price * enrichedItem.quantity;
+        enrichedItems.push(enrichedItem);
       }
-      cartTotal += product.price * item.quantity;
     }
 
     res.status(200).json({
@@ -51,7 +115,7 @@ exports.getCart = async (req, res, next) => {
         cart: {
           _id: cart._id,
           buyerId: cart.buyerId,
-          items: cart.items,
+          items: enrichedItems,
           cartTotal
         }
       }
@@ -136,10 +200,14 @@ exports.addToCart = async (req, res, next) => {
       select: 'title price images category status stock'
     });
 
-    const cartTotal = updatedCart.items.reduce((total, item) => {
-      const price = item.productId ? item.productId.price : 0;
-      return total + (price * item.quantity);
-    }, 0);
+    let cartTotal = 0;
+    for (const item of updatedCart.items) {
+      const product = item.productId;
+      if (product) {
+        product.price = await getProductPriceForUser(product, req.user._id);
+        cartTotal += product.price * item.quantity;
+      }
+    }
 
     res.status(200).json({
       status: 'success',
@@ -173,6 +241,18 @@ exports.removeFromCart = async (req, res, next) => {
       });
     }
 
+    const itemToRemove = cart.items.find(item => item.productId.toString() === productId);
+    if (itemToRemove) {
+      const product = await Product.findById(productId);
+      const meta = await getCartItemMetadata(product, req.user._id);
+      if (itemToRemove.isMandatory || meta.isMandatory || itemToRemove.itemType === 'WON_AUCTION' || itemToRemove.itemType === 'ACCEPTED_RFQ') {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Obligatory items (won auctions / accepted RFQs) are binding commitments and cannot be removed from your shopping bag.'
+        });
+      }
+    }
+
     cart.items = cart.items.filter(item => item.productId.toString() !== productId);
     await cart.save();
 
@@ -182,10 +262,14 @@ exports.removeFromCart = async (req, res, next) => {
       select: 'title price images category status stock'
     });
 
-    const cartTotal = updatedCart.items.reduce((total, item) => {
-      const price = item.productId ? item.productId.price : 0;
-      return total + (price * item.quantity);
-    }, 0);
+    let cartTotal = 0;
+    for (const item of updatedCart.items) {
+      const product = item.productId;
+      if (product) {
+        product.price = await getProductPriceForUser(product, req.user._id);
+        cartTotal += product.price * item.quantity;
+      }
+    }
 
     res.status(200).json({
       status: 'success',
@@ -207,8 +291,20 @@ exports.removeFromCart = async (req, res, next) => {
 // @desc    Checkout the cart and create a pending order
 // @route   POST /api/cart/checkout
 // @access  Private
+// @desc    Checkout the cart and create a pending order (selective checkout)
+// @route   POST /api/cart/checkout
+// @access  Private
 exports.checkout = async (req, res, next) => {
   try {
+    const { selectedProductIds } = req.body;
+
+    if (!selectedProductIds || !Array.isArray(selectedProductIds) || selectedProductIds.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'selectedProductIds is required and must be a non-empty array.'
+      });
+    }
+
     // 1. Fetch user's cart populated with current product details
     const cart = await Cart.findOne({ buyerId: req.user._id }).populate({
       path: 'items.productId',
@@ -222,42 +318,71 @@ exports.checkout = async (req, res, next) => {
       });
     }
 
-    // 2. Verify all items are still status: 'available' and in stock
+    // 2. Filter cart items to only include those whose productId is in the selectedProductIds array
+    const selectedItems = cart.items.filter(item => 
+      item.productId && selectedProductIds.includes(item.productId._id.toString())
+    );
+
+    if (selectedItems.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'None of the selected items were found in your cart'
+      });
+    }
+
+    // 3. Verify stock availability only for this filtered subset
     const orderItems = [];
     const sellerIdsSet = new Set();
     let totalAmount = 0;
 
-    for (const item of cart.items) {
+    for (const item of selectedItems) {
       const product = item.productId;
       if (!product) {
         return res.status(400).json({
           status: 'error',
-          message: 'One of the items in your cart is no longer available'
+          message: 'One of the selected items is no longer available'
         });
       }
 
-      if (product.status !== 'available' || product.stock < item.quantity) {
-        return res.status(400).json({
-          status: 'error',
-          message: `Product "${product.title}" is out of stock or no longer available`
-        });
+      // Check if product is available (allow if won auction or accepted RFQ)
+      const completedAuction = await Auction.findOne({
+        productId: product._id,
+        highestBidder: req.user._id,
+        status: 'completed'
+      });
+      const acceptedRfq = await RFQ.findOne({
+        buyerId: req.user._id,
+        status: 'completed',
+        "quotes.productId": product._id,
+        "quotes.accepted": true
+      });
+
+      if (!completedAuction && !acceptedRfq) {
+        if (product.status !== 'available' || product.stock < item.quantity) {
+          return res.status(400).json({
+            status: 'error',
+            message: `Product "${product.title}" is out of stock or has insufficient stock`
+          });
+        }
       }
 
       if (product.sellerId) {
         sellerIdsSet.add(product.sellerId.toString());
       }
 
+      const priceAtPurchase = await getProductPriceForUser(product, req.user._id);
+
       orderItems.push({
         productId: product._id,
         title: product.title,
-        priceAtPurchase: product.price,
+        priceAtPurchase,
         quantity: item.quantity
       });
 
-      totalAmount += product.price * item.quantity;
+      totalAmount += priceAtPurchase * item.quantity;
     }
 
-    // 3. Generate placeholder shipping address since user will finalize it on checkout page
+    // 4. Generate placeholder shipping address since user will finalize it on checkout page
     const shippingAddress = {
       fullName: req.user.name || 'Valued Client',
       streetAddress: 'Pending Address Confirmation',
@@ -267,27 +392,152 @@ exports.checkout = async (req, res, next) => {
       phoneNumber: req.user.phone || '0000000000'
     };
 
-    // 4. Create the new pending Order document (spanning all items)
-    const order = await Order.create({
+    // 5. Find if there is an existing pending standard checkout order for this buyer
+    let order = await Order.findOne({
       buyerId: req.user._id,
-      sellerIds: Array.from(sellerIdsSet),
-      items: orderItems,
-      shippingAddress,
-      paymentStatus: 'pending',
-      orderStatus: 'processing',
-      totalAmount
-    });
+      paymentStatus: 'pending'
+    }).populate('items.productId');
 
-    // 5. Clear the user's Cart document entirely
-    cart.items = [];
-    await cart.save();
+    const isAuctionOrder = order && order.items.some(item => item.productId && item.productId.listingType === 'auction');
 
-    // 6. Return orderId
+    if (order && !isAuctionOrder) {
+      // Reuse and update the existing pending order with selected cart items
+      order.sellerIds = Array.from(sellerIdsSet);
+      order.items = orderItems;
+      order.totalAmount = totalAmount;
+      order.shippingAddress = shippingAddress;
+      await order.save();
+    } else {
+      // Create a new pending order
+      order = await Order.create({
+        buyerId: req.user._id,
+        sellerIds: Array.from(sellerIdsSet),
+        items: orderItems,
+        shippingAddress,
+        paymentStatus: 'pending',
+        orderStatus: 'processing',
+        totalAmount
+      });
+    }
+
+    // 6. Cart Cleanup: pull only checked-out items from the user's cart array
+    await Cart.updateOne(
+      { buyerId: req.user._id },
+      { $pull: { items: { productId: { $in: selectedProductIds } } } }
+    );
+
+    // 7. Return orderId
     res.status(200).json({
       status: 'success',
       message: 'Checkout initialized successfully',
       data: {
         orderId: order._id
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update quantity of a specific item in the cart
+// @route   PUT /api/cart/update-quantity
+// @access  Private
+exports.updateQuantity = async (req, res, next) => {
+  try {
+    const { productId, quantity } = req.body;
+
+    if (!productId || quantity === undefined) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Product ID and quantity are required.'
+      });
+    }
+
+    const qty = Number(quantity);
+    if (isNaN(qty) || qty < 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Quantity must be a non-negative number.'
+      });
+    }
+
+    // Find user's cart
+    let cart = await Cart.findOne({ buyerId: req.user._id });
+    if (!cart) {
+      cart = new Cart({ buyerId: req.user._id, items: [] });
+    }
+
+    const itemToUpdate = cart.items.find(item => item.productId.toString() === productId);
+    if (itemToUpdate) {
+      const product = await Product.findById(productId);
+      const meta = await getCartItemMetadata(product, req.user._id);
+      if (itemToUpdate.isMandatory || meta.isMandatory || itemToUpdate.itemType === 'WON_AUCTION' || itemToUpdate.itemType === 'ACCEPTED_RFQ') {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Quantity for won auctions or accepted RFQs is fixed and cannot be modified.'
+        });
+      }
+    }
+
+    // If quantity is 0, remove the item entirely
+    if (qty === 0) {
+      cart.items = cart.items.filter(item => item.productId.toString() !== productId);
+      await cart.save();
+    } else {
+      // Verify product exists and check its stock
+      const product = await Product.findById(productId);
+      if (!product) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Product not found.'
+        });
+      }
+
+      if (product.status !== 'available' || product.stock < qty) {
+        return res.status(400).json({
+          status: 'error',
+          message: `Insufficient stock. Only ${product.stock} items are in stock.`
+        });
+      }
+
+      const itemIndex = cart.items.findIndex(item => item.productId.toString() === productId);
+      if (itemIndex > -1) {
+        cart.items[itemIndex].quantity = qty;
+        cart.items[itemIndex].priceAtAdd = product.price;
+      } else {
+        cart.items.push({ productId, priceAtAdd: product.price, quantity: qty });
+      }
+
+      await cart.save();
+    }
+
+    // Fetch updated cart populated with product details to return
+    const updatedCart = await Cart.findOne({ buyerId: req.user._id }).populate({
+      path: 'items.productId',
+      select: 'title price images category status stock'
+    });
+
+    let cartTotal = 0;
+    if (updatedCart) {
+      for (const item of updatedCart.items) {
+        const product = item.productId;
+        if (product) {
+          product.price = await getProductPriceForUser(product, req.user._id);
+          cartTotal += product.price * item.quantity;
+        }
+      }
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Cart quantity updated successfully',
+      data: {
+        cart: {
+          _id: updatedCart ? updatedCart._id : null,
+          buyerId: req.user._id,
+          items: updatedCart ? updatedCart.items : [],
+          cartTotal
+        }
       }
     });
   } catch (error) {

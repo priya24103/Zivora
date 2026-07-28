@@ -614,3 +614,112 @@ exports.getAuctionById = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Update an existing auction listing
+// @route   PUT /api/seller/auctions/:id
+// @access  Private (Seller only)
+exports.updateAuction = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const mongoose = require('mongoose');
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Auction not found'
+      });
+    }
+
+    const auction = await Auction.findById(id).populate('productId');
+
+    if (!auction) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Auction not found'
+      });
+    }
+
+    // Verify ownership
+    const sellerIdOnAuction = auction.sellerId ? auction.sellerId.toString() : null;
+    const sellerIdOnProduct = auction.productId && auction.productId.sellerId ? auction.productId.sellerId.toString() : null;
+    const userId = req.user._id.toString();
+
+    if (sellerIdOnAuction !== userId && sellerIdOnProduct !== userId) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Access denied. You do not own this auction.'
+      });
+    }
+
+    // Critical validation: active, completed, or has bids
+    const bidsLength = auction.bids ? auction.bids.length : 0;
+    if (
+      auction.status === 'active' ||
+      auction.status === 'completed' ||
+      bidsLength > 0 ||
+      auction.bidsCount > 0
+    ) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Cannot edit an auction that is live or has active bids.'
+      });
+    }
+
+    const { startingBid, startTime, endTime } = req.body;
+
+    if (startingBid !== undefined) {
+      auction.startPrice = Number(startingBid);
+      auction.currentHighestBid = Number(startingBid);
+    }
+
+    if (startTime !== undefined) {
+      const parsedStartTime = new Date(startTime);
+      if (isNaN(parsedStartTime.getTime())) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Invalid start time date format'
+        });
+      }
+      auction.startTime = parsedStartTime;
+      auction.registrationDeadline = parsedStartTime;
+    }
+
+    if (endTime !== undefined) {
+      const parsedEndTime = new Date(endTime);
+      if (isNaN(parsedEndTime.getTime())) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Invalid end time date format'
+        });
+      }
+      auction.endTime = parsedEndTime;
+    }
+
+    // Check if end time is after start time
+    if (auction.endTime <= auction.startTime) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Auction end time must occur after the start time'
+      });
+    }
+
+    const updatedAuction = await auction.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Auction updated successfully',
+      data: {
+        auction: updatedAuction
+      }
+    });
+  } catch (error) {
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        status: 'error',
+        message: messages.join(', ')
+      });
+    }
+    next(error);
+  }
+};
