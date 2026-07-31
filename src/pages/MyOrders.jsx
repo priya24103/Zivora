@@ -13,8 +13,10 @@ import {
   Package,
   CheckCircle2,
   XCircle,
-  ChevronRight
+  ChevronRight,
+  Star
 } from 'lucide-react';
+import RateSellerModal from '../components/RateSellerModal';
 
 const API_BASE_URL = 'http://localhost:2409/api';
 
@@ -44,12 +46,17 @@ const cardVariants = {
 export default function MyOrders() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
+  const [userReviews, setUserReviews] = useState({}); // { [orderId]: rating }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
+  
+  // Rate Modal States
+  const [selectedOrderForRating, setSelectedOrderForRating] = useState(null);
+  const [isRateModalOpen, setIsRateModalOpen] = useState(false);
 
   useEffect(() => {
-    const fetchOrders = async () => {
+    const fetchOrdersAndReviews = async () => {
       try {
         setLoading(true);
         const token = localStorage.getItem('zivora_token');
@@ -58,12 +65,25 @@ export default function MyOrders() {
           return;
         }
 
-        const response = await axios.get(`${API_BASE_URL}/orders/my-orders`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const [ordersRes, reviewsRes] = await Promise.allSettled([
+          axios.get(`${API_BASE_URL}/orders/my-orders`, { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get(`${API_BASE_URL}/reviews/my-reviews`, { headers: { Authorization: `Bearer ${token}` } })
+        ]);
 
-        if (response.data.status === 'success') {
-          setOrders(response.data.data.orders);
+        if (ordersRes.status === 'fulfilled' && ordersRes.value.data.status === 'success') {
+          setOrders(ordersRes.value.data.data.orders);
+        } else if (ordersRes.status === 'rejected') {
+          throw ordersRes.reason;
+        }
+
+        if (reviewsRes.status === 'fulfilled' && reviewsRes.value.data.status === 'success') {
+          const revMap = {};
+          (reviewsRes.value.data.data.reviews || []).forEach((r) => {
+            if (r.orderId) {
+              revMap[r.orderId.toString()] = r.rating;
+            }
+          });
+          setUserReviews(revMap);
         }
       } catch (err) {
         console.error('Error fetching orders:', err);
@@ -73,7 +93,7 @@ export default function MyOrders() {
       }
     };
 
-    fetchOrders();
+    fetchOrdersAndReviews();
   }, [navigate]);
 
   const handleDownloadInvoice = async (orderId) => {
@@ -223,15 +243,38 @@ export default function MyOrders() {
                       </div>
                     </div>
                     
-                    {/* Invoice Download Action Button */}
-                    <button
-                      onClick={() => handleDownloadInvoice(order._id)}
-                      disabled={downloadingId === order._id}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 border border-[#A48374]/40 hover:border-[#A48374] hover:bg-[#F1EDE6]/30 text-xs font-semibold rounded-full text-[#A48374] hover:text-[#3A2D28] transition-all disabled:opacity-50 cursor-pointer shadow-sm"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      {downloadingId === order._id ? 'Generating...' : 'Download Invoice'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {/* Rate Seller Action (Only for Delivered Orders) */}
+                      {(order.fulfillmentStatus === 'delivered' || order.orderStatus === 'delivered') && (
+                        userReviews[order._id] ? (
+                          <div className="inline-flex items-center gap-1 px-3.5 py-1.5 bg-[#FAF8F6] border border-[#CBAD8D]/40 text-[#86684e] text-xs font-bold rounded-full font-mono">
+                            <Star className="w-3.5 h-3.5 fill-[#CBAD8D] text-[#CBAD8D]" />
+                            Rated {userReviews[order._id]}.0 ★
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setSelectedOrderForRating(order);
+                              setIsRateModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#3A2D28] hover:bg-[#A48374] text-white text-xs font-semibold rounded-full transition-all cursor-pointer shadow-sm"
+                          >
+                            <Star className="w-3.5 h-3.5 fill-[#CBAD8D] text-[#CBAD8D]" />
+                            Rate Seller
+                          </button>
+                        )
+                      )}
+
+                      {/* Invoice Download Action Button */}
+                      <button
+                        onClick={() => handleDownloadInvoice(order._id)}
+                        disabled={downloadingId === order._id}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 border border-[#A48374]/40 hover:border-[#A48374] hover:bg-[#F1EDE6]/30 text-xs font-semibold rounded-full text-[#A48374] hover:text-[#3A2D28] transition-all disabled:opacity-50 cursor-pointer shadow-sm"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        {downloadingId === order._id ? 'Generating...' : 'Download Invoice'}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Order Content */}
@@ -368,6 +411,22 @@ export default function MyOrders() {
           </motion.div>
         )}
       </div>
+
+      {/* Rate Seller Modal */}
+      <RateSellerModal
+        isOpen={isRateModalOpen}
+        onClose={() => {
+          setIsRateModalOpen(false);
+          setSelectedOrderForRating(null);
+        }}
+        order={selectedOrderForRating}
+        onReviewSubmitted={(orderId, rating) => {
+          setUserReviews((prev) => ({
+            ...prev,
+            [orderId]: rating
+          }));
+        }}
+      />
     </motion.div>
   );
 }

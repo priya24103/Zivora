@@ -34,7 +34,9 @@ import {
   Handshake,
   Edit2,
   ShoppingBag,
-  Tag
+  Tag,
+  Star,
+  Award
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
@@ -42,6 +44,7 @@ import OfferInbox from '../components/OfferInbox';
 import { io } from 'socket.io-client';
 import EditListingDrawer from '../components/EditListingDrawer';
 import Messages from './Messages';
+import SellerReviewsModal from '../components/SellerReviewsModal';
 
 export default function SellerDashboard() {
   const navigate = useNavigate();
@@ -91,7 +94,10 @@ export default function SellerDashboard() {
   
   // Dynamic Dashboard Metrics & Chart State
   const [totalSalesAmount, setTotalSalesAmount] = useState(0);
-  const [sellerRating, setSellerRating] = useState('5.0');
+  const [sellerRating, setSellerRating] = useState('0.0');
+  const [sellerReviewsCount, setSellerReviewsCount] = useState(0);
+  const [sellerReviewsList, setSellerReviewsList] = useState([]);
+  const [showReviewsModal, setShowReviewsModal] = useState(false);
   const [closedOrdersCount, setClosedOrdersCount] = useState(0);
   const [monthlyChartData, setMonthlyChartData] = useState([]);
 
@@ -526,6 +532,25 @@ export default function SellerDashboard() {
       } catch (orderErr) {
         console.error('Error fetching seller orders for metrics:', orderErr);
       }
+
+      // 6. Fetch seller customer reviews
+      try {
+        const reviewRes = await axios.get('http://localhost:2409/api/reviews/seller-reviews', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (reviewRes.data.status === 'success') {
+          const { avgRating, totalCount, reviews } = reviewRes.data.data;
+          setSellerReviewsList(reviews || []);
+          setSellerReviewsCount(totalCount || 0);
+          if (totalCount > 0) {
+            setSellerRating(Number(avgRating).toFixed(1));
+          } else {
+            setSellerRating('0.0');
+          }
+        }
+      } catch (revErr) {
+        console.error('Error fetching seller reviews:', revErr);
+      }
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
       setError('Could not retrieve console data from the database.');
@@ -899,13 +924,22 @@ export default function SellerDashboard() {
                   </div>
 
                   {/* Card 4: Seller Rating */}
-                  <div className="bg-white rounded-[24px] p-6 border border-[#CBAD8D]/15 shadow-[0_8px_30px_rgba(0,0,0,0.015)] flex items-center gap-5">
-                    <div className="w-14 h-14 rounded-2xl bg-[#FFF5F5] flex items-center justify-center text-[#C084FC] flex-shrink-0">
+                  <div 
+                    onClick={() => setShowReviewsModal(true)}
+                    title="Click to view verified customer reviews"
+                    className="bg-white rounded-[24px] p-6 border border-[#CBAD8D]/15 shadow-[0_8px_30px_rgba(0,0,0,0.015)] flex items-center gap-5 cursor-pointer hover:border-[#A48374] transition-all group"
+                  >
+                    <div className="w-14 h-14 rounded-2xl bg-[#FFF5F5] flex items-center justify-center text-[#C084FC] flex-shrink-0 group-hover:scale-105 transition-transform">
                       <TrendingUp className="w-7 h-7" />
                     </div>
                     <div>
-                      <h4 className="text-3xl font-light text-[#3A2D28] tracking-tight">{loading ? '...' : sellerRating}</h4>
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-[#A48374] mt-1">Seller Rating</p>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="text-3xl font-light text-[#3A2D28] tracking-tight">{loading ? '...' : sellerRating}</h4>
+                        <Star className="w-4 h-4 fill-[#CBAD8D] text-[#CBAD8D]" />
+                      </div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-[#A48374] mt-1 group-hover:text-[#3A2D28] transition-colors flex items-center gap-1">
+                        Seller Rating ({sellerReviewsCount}) <ChevronRight className="w-3 h-3" />
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1029,6 +1063,13 @@ export default function SellerDashboard() {
                         >
                           <MessageSquare className="w-8 h-8 text-[#A48374] mb-3 group-hover:scale-110 transition-transform" />
                           <span className="text-[10px] font-bold text-[#3A2D28] uppercase tracking-wider text-center">Messages</span>
+                        </button>
+                        <button 
+                          onClick={() => setShowReviewsModal(true)}
+                          className="flex flex-col items-center justify-center p-6 bg-white rounded-2xl border border-[#CBAD8D]/20 hover:border-[#A48374] hover:bg-[#FBF9F6] transition-all group cursor-pointer col-span-2"
+                        >
+                          <Award className="w-8 h-8 text-[#A48374] mb-2 group-hover:scale-110 transition-transform" />
+                          <span className="text-[10px] font-bold text-[#3A2D28] uppercase tracking-wider text-center">View Customer Reviews ({sellerReviewsCount})</span>
                         </button>
                       </div>
                     </div>
@@ -2216,6 +2257,15 @@ export default function SellerDashboard() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Seller Reviews Modal */}
+        <SellerReviewsModal
+          isOpen={showReviewsModal}
+          onClose={() => setShowReviewsModal(false)}
+          reviews={sellerReviewsList}
+          avgRating={sellerRating}
+          totalCount={sellerReviewsCount}
+        />
 
       </div>
     </div>
