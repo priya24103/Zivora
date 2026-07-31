@@ -16,10 +16,29 @@ class MinHeap {
   }
 
   compare(item1, item2) {
+    // Tier 1: Price (Lowest price wins)
     if (item1.quotePrice !== item2.quotePrice) {
       return item1.quotePrice < item2.quotePrice;
     }
-    return new Date(item1.createdAt) < new Date(item2.createdAt);
+
+    // Tier 2: Seller Rating (Higher rating wins)
+    const rating1 = item1.sellerId?.sellerProfile?.rating ?? item1.sellerRating ?? 0.0;
+    const rating2 = item2.sellerId?.sellerProfile?.rating ?? item2.sellerRating ?? 0.0;
+    if (rating1 !== rating2) {
+      return rating1 > rating2;
+    }
+
+    // Tier 3: Submission Timestamp (Earliest timestamp wins)
+    const t1 = item1.createdAt ? new Date(item1.createdAt).getTime() : 0;
+    const t2 = item2.createdAt ? new Date(item2.createdAt).getTime() : 0;
+    if (t1 !== t2) {
+      return t1 < t2;
+    }
+
+    // Tier 4: Deterministic fallback (_id lexicographical comparison)
+    const id1 = item1._id ? item1._id.toString() : '';
+    const id2 = item2._id ? item2._id.toString() : '';
+    return id1 < id2;
   }
 
   insert(item) {
@@ -89,7 +108,7 @@ const processExpiredRFQs = async () => {
     const expiredRFQs = await RFQ.find({
       status: { $in: ['pending', 'submitted', 'open'] },
       deadline: { $lte: now }
-    });
+    }).populate('quotes.sellerId', 'name sellerProfile');
 
     if (expiredRFQs.length === 0) return;
 
@@ -105,10 +124,11 @@ const processExpiredRFQs = async () => {
         const winningQuote = heap.extractMin();
 
         if (winningQuote) {
-          rfq.winnerSeller = winningQuote.sellerId;
+          const winnerId = winningQuote.sellerId?._id || winningQuote.sellerId;
+          rfq.winnerSeller = winnerId;
           rfq.winningQuoteId = winningQuote._id;
           rfq.status = 'awarded';
-          console.log(`[RFQ Cron Job] RFQ ${rfq._id} successfully awarded to Seller ${winningQuote.sellerId} (Quote: ₹${winningQuote.quotePrice})`);
+          console.log(`[RFQ Cron Job] RFQ ${rfq._id} successfully awarded to Seller ${winnerId} (Quote: ₹${winningQuote.quotePrice})`);
           
           // Automatically create pending order record for the winner seller
           await ensureRFQOrder(rfq, winningQuote);

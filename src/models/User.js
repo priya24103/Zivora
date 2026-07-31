@@ -11,7 +11,17 @@ const sellerProfileSchema = new mongoose.Schema({
     enum: ['pending', 'approved', 'rejected'],
     default: 'pending'
   },
-  kycRemarks: { type: String, default: '' }
+  kycRemarks: { type: String, default: '' },
+  rating: {
+    type: Number,
+    default: 0.0,
+    min: 0.0,
+    max: 5.0
+  },
+  ratingsCount: {
+    type: Number,
+    default: 0
+  }
 }, { _id: false });
 
 const userSchema = new mongoose.Schema({
