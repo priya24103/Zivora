@@ -106,11 +106,12 @@ export default function UserManagement() {
     }
   };
 
-  const filteredUsers = users.filter(user => 
-    user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (user.company && user.company.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const filteredUsers = users.filter(user => {
+    const compName = user.sellerProfile?.companyName || user.buyerProfile?.companyName || user.company || '';
+    return user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      compName.toLowerCase().includes(searchQuery.toLowerCase());
+  });
 
   // Framer Motion staggered list variants
   const containerVariants = {
@@ -227,7 +228,9 @@ export default function UserManagement() {
                       </span>
                     </td>
                     <td className="p-5">
-                      <span className="font-medium text-[#3A2D28]">{user.company || '—'}</span>
+                      <span className="font-medium text-[#3A2D28]">
+                        {user.sellerProfile?.companyName || user.buyerProfile?.companyName || '—'}
+                      </span>
                     </td>
                     <td className="p-5">
                       {getStatusBadge(user.status)}

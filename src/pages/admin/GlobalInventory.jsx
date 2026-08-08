@@ -228,7 +228,7 @@ export default function GlobalInventory() {
                     </td>
                     <td className="p-5">
                       <div className="font-semibold text-[#3A2D28]">{product.sellerId?.name || '—'}</div>
-                      <div className="text-gray-400 mt-1">{product.sellerId?.company || 'Individual Seller'}</div>
+                      <div className="text-gray-400 mt-1">{product.sellerId?.sellerProfile?.companyName || 'Individual Seller'}</div>
                     </td>
                     <td className="p-5">
                       {getListingBadge(product.listingType)}
