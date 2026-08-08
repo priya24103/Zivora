@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, AlertCircle, RefreshCw } from 'lucide-react';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 
 // Helper to format ISO date strings for <input type="datetime-local" />
 const formatDateTimeLocal = (dateString) => {
@@ -77,7 +78,7 @@ export default function EditListingDrawer({ isOpen, onClose, selectedListing, on
         };
 
         await axios.put(
-          `http://localhost:2409/api/seller/auctions/${selectedListing._id}`,
+          `${API_BASE_URL}/seller/auctions/${selectedListing._id}`,
           payload,
           config
         );
@@ -90,7 +91,7 @@ export default function EditListingDrawer({ isOpen, onClose, selectedListing, on
         };
 
         await axios.put(
-          `http://localhost:2409/api/seller/products/${selectedListing._id}`,
+          `${API_BASE_URL}/seller/products/${selectedListing._id}`,
           payload,
           config
         );

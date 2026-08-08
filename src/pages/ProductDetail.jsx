@@ -21,8 +21,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import MakeOfferModal from '../components/MakeOfferModal';
 import HeartButton from '../components/HeartButton';
-
-const API_BASE = 'http://localhost:2409/api';
+import { API_BASE_URL } from '../config/api';
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -53,7 +52,7 @@ export default function ProductDetail() {
       setLoading(true);
       setError(null);
       try {
-        const response = await axios.get(`${API_BASE}/products/${id}`);
+        const response = await axios.get(`${API_BASE_URL}/products/${id}`);
         if (response.data.status === 'success') {
           const prodData = response.data.data.product;
           setProduct(prodData);
@@ -82,7 +81,7 @@ export default function ProductDetail() {
       const token = localStorage.getItem('zivora_token');
       if (!token) return;
       try {
-        const response = await axios.get(`${API_BASE}/wishlist`, {
+        const response = await axios.get(`${API_BASE_URL}/wishlist`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (response.data.status === 'success') {
@@ -106,7 +105,7 @@ export default function ProductDetail() {
     }
 
     try {
-      const response = await axios.post(`${API_BASE}/wishlist/toggle`, {
+      const response = await axios.post(`${API_BASE_URL}/wishlist/toggle`, {
         productId: id
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -130,7 +129,7 @@ export default function ProductDetail() {
         return;
       }
 
-      const response = await axios.post(`${API_BASE}/cart/add`, {
+      const response = await axios.post(`${API_BASE_URL}/cart/add`, {
         productId: product._id,
         quantity: 1
       }, {
@@ -158,7 +157,7 @@ export default function ProductDetail() {
       return;
     }
     try {
-      const response = await axios.post(`${API_BASE}/products/${product._id}/request-memo`, {}, {
+      const response = await axios.post(`${API_BASE_URL}/products/${product._id}/request-memo`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.status === 'success') {
@@ -193,7 +192,7 @@ export default function ProductDetail() {
         text: `Inquiry regarding Product: ${product.title} (ID: ${product._id}). Message: ${inquiryMessage}`
       };
 
-      await axios.post(`${API_BASE}/conversations/send`, payload, {
+      await axios.post(`${API_BASE_URL}/conversations/send`, payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
 

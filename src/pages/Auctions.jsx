@@ -18,8 +18,7 @@ import {
   Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-
-const API_URL = 'http://localhost:2409';
+import { SOCKET_URL, API_BASE_URL } from '../config/api';
 
 export default function Auctions() {
   const navigate = useNavigate();
@@ -77,7 +76,7 @@ export default function Auctions() {
     }
 
     // Connect to Socket.io
-    socketRef.current = io(API_URL, {
+    socketRef.current = io(SOCKET_URL, {
       transports: ['websocket'],
       auth: { token }
     });
@@ -133,7 +132,7 @@ export default function Auctions() {
       setLoading(true);
       setError(null);
       
-      const res = await axios.get(`${API_URL}/api/auctions/dashboard`, {
+      const res = await axios.get(`${API_BASE_URL}/auctions/dashboard`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
 
@@ -207,7 +206,7 @@ export default function Auctions() {
       setRegisteredList(prev => ({ ...prev, [auction._id]: true }));
 
       // Send to backend
-      await axios.post(`${API_URL}/api/auctions/${auction._id}/register`, {}, {
+      await axios.post(`${API_BASE_URL}/auctions/${auction._id}/register`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
     } catch (err) {

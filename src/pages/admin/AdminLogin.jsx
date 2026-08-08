@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
 import axios from 'axios';
+import { API_BASE_URL } from '../../config/api';
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -17,7 +18,7 @@ export default function AdminLogin() {
 
     try {
       // Admin login request
-      const response = await axios.post('http://localhost:2409/api/admin/login', {
+      const response = await axios.post(`${API_BASE_URL}/admin/login`, {
         email,
         password
       });

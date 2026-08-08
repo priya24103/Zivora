@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ShoppingBag, Trash2, Heart, ArrowLeft, Loader2 } from 'lucide-react';
 import axios from 'axios';
 import { useCart } from '../context/CartContext';
+import { API_BASE_URL } from '../config/api';
 
 export default function Wishlist() {
   const navigate = useNavigate();
@@ -31,7 +32,7 @@ export default function Wishlist() {
 
     try {
       setLoading(true);
-      const response = await axios.get('http://localhost:2409/api/wishlist', {
+      const response = await axios.get(`${API_BASE_URL}/wishlist`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.status === 'success') {
@@ -59,7 +60,7 @@ export default function Wishlist() {
 
     const token = localStorage.getItem('zivora_token');
     try {
-      await axios.delete(`http://localhost:2409/api/wishlist/remove/${productId}`, {
+      await axios.delete(`${API_BASE_URL}/wishlist/remove/${productId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
     } catch (err) {

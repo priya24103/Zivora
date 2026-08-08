@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { Star, X, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
-
-const API_BASE_URL = 'http://localhost:2409/api';
+import { API_BASE_URL } from '../config/api';
 
 export default function RateSellerModal({ isOpen, onClose, order, onReviewSubmitted }) {
   const [rating, setRating] = useState(5);

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 
-const API_BASE = 'http://localhost:2409/api';
 const CartContext = createContext();
 
 export const useCart = () => {
@@ -36,7 +36,7 @@ export const CartProvider = ({ children }) => {
 
     setLoading(true);
     try {
-      const response = await axios.get(`${API_BASE}/cart`, {
+      const response = await axios.get(`${API_BASE_URL}/cart`, {
         headers: getHeaders()
       });
       if (response.data.status === 'success') {
@@ -67,7 +67,7 @@ export const CartProvider = ({ children }) => {
     setLoading(true);
     try {
       const response = await axios.post(
-        `${API_BASE}/cart/add`,
+        `${API_BASE_URL}/cart/add`,
         { productId, quantity },
         { headers: getHeaders() }
       );
@@ -96,7 +96,7 @@ export const CartProvider = ({ children }) => {
   const removeFromCart = async (productId) => {
     setLoading(true);
     try {
-      const response = await axios.delete(`${API_BASE}/cart/remove/${productId}`, {
+      const response = await axios.delete(`${API_BASE_URL}/cart/remove/${productId}`, {
         headers: getHeaders()
       });
       if (response.data.status === 'success') {
@@ -122,7 +122,7 @@ export const CartProvider = ({ children }) => {
     setLoading(true);
     try {
       const response = await axios.put(
-        `${API_BASE}/cart/update-quantity`,
+        `${API_BASE_URL}/cart/update-quantity`,
         { productId, quantity },
         { headers: getHeaders() }
       );
@@ -150,7 +150,7 @@ export const CartProvider = ({ children }) => {
     setError(null);
     try {
       const response = await axios.post(
-        `${API_BASE}/cart/checkout`,
+        `${API_BASE_URL}/cart/checkout`,
         { selectedProductIds },
         { headers: getHeaders() }
       );

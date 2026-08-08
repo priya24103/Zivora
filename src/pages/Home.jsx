@@ -4,6 +4,7 @@ import { motion, useScroll, useTransform } from "motion/react";
 import { useRef, useState, useEffect } from "react";
 import ProductCard from "../components/ProductCard";
 import axios from "axios";
+import { API_BASE_URL } from "../config/api";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -110,7 +111,7 @@ export default function Home() {
   useEffect(() => {
     const fetchFeatured = async () => {
       try {
-        const response = await axios.get("http://localhost:2409/api/products?limit=4");
+        const response = await axios.get(`${API_BASE_URL}/products?limit=4`);
         if (response.data.status === "success" && response.data.data.products.length > 0) {
           const mapped = response.data.data.products.map(p => ({
             id: p._id,

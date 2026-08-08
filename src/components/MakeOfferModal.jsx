@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { X, Handshake, ShieldCheck, Sparkles, MessageCircle, DollarSign, CheckCircle } from 'lucide-react';
 import axios from 'axios';
-
-const API_BASE = 'http://localhost:2409/api';
+import { API_BASE_URL } from '../config/api';
 
 export default function MakeOfferModal({ isOpen, onClose, product, onOfferSubmitted }) {
   const [offerAmount, setOfferAmount] = useState('');
@@ -48,7 +47,7 @@ export default function MakeOfferModal({ isOpen, onClose, product, onOfferSubmit
 
       // API Call to create an offer
       const response = await axios.post(
-        `${API_BASE}/offers/create`,
+        `${API_BASE_URL}/offers/create`,
         {
           productId: product._id,
           initialAmount: amountNum,

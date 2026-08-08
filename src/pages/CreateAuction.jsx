@@ -13,8 +13,7 @@ import {
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-
-const API_URL = 'http://localhost:2409';
+import { API_BASE_URL } from '../config/api';
 
 // Static choices matching Product.js schemas
 const DIAMOND_SHAPES = ['Round', 'Princess', 'Cushion', 'Emerald', 'Oval', 'Radiant', 'Pear', 'Marquise', 'Asscher', 'Heart'];
@@ -120,7 +119,7 @@ export default function CreateAuction() {
     });
 
     try {
-      const res = await axios.post(`${API_URL}/api/upload/multiple`, formData, {
+      const res = await axios.post(`${API_BASE_URL}/upload/multiple`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
@@ -235,7 +234,7 @@ export default function CreateAuction() {
         })
       };
 
-      const response = await axios.post(`${API_URL}/api/auctions/create`, payload, {
+      const response = await axios.post(`${API_BASE_URL}/auctions/create`, payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
 

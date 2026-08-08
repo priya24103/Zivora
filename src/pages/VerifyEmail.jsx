@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import axios from 'axios';
 import { Mail, ShieldCheck, AlertCircle, ArrowLeft, CheckCircle2 } from 'lucide-react';
-
-const API_BASE_URL = 'http://localhost:2409/api';
+import { API_BASE_URL } from '../config/api';
 
 export default function VerifyEmail() {
   const navigate = useNavigate();

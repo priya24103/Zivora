@@ -20,6 +20,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import OfferInbox from '../components/OfferInbox';
+import { API_BASE_URL } from '../config/api';
 
 export default function BuyerDashboard() {
   const navigate = useNavigate();
@@ -60,7 +61,7 @@ export default function BuyerDashboard() {
       }
 
       // 1. Fetch RFQs
-      const rfqRes = await axios.get('http://localhost:2409/api/rfq', {
+      const rfqRes = await axios.get(`${API_BASE_URL}/rfq`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (rfqRes.data.status === 'success') {
@@ -68,7 +69,7 @@ export default function BuyerDashboard() {
       }
 
       // 2. Fetch my bidding history
-      const bidsRes = await axios.get('http://localhost:2409/api/auctions/my-bids', {
+      const bidsRes = await axios.get(`${API_BASE_URL}/auctions/my-bids`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (bidsRes.data.status === 'success') {
@@ -76,7 +77,7 @@ export default function BuyerDashboard() {
       }
 
       // 3. Fetch active auctions available to bid on
-      const activeRes = await axios.get('http://localhost:2409/api/auctions', {
+      const activeRes = await axios.get(`${API_BASE_URL}/auctions`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (activeRes.data.status === 'success') {
@@ -84,7 +85,7 @@ export default function BuyerDashboard() {
       }
 
       // 4. Fetch placed orders
-      const ordersRes = await axios.get('http://localhost:2409/api/orders/my-orders', {
+      const ordersRes = await axios.get(`${API_BASE_URL}/orders/my-orders`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (ordersRes.data.status === 'success') {
@@ -119,7 +120,7 @@ export default function BuyerDashboard() {
 
     try {
       const token = localStorage.getItem('zivora_token');
-      const response = await axios.post(`http://localhost:2409/api/auctions/${auctionId}/bid`, {
+      const response = await axios.post(`${API_BASE_URL}/auctions/${auctionId}/bid`, {
         bidAmount
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -139,7 +140,7 @@ export default function BuyerDashboard() {
   const handleRegisterForAuction = async (auctionId) => {
     try {
       const token = localStorage.getItem('zivora_token');
-      const response = await axios.post(`http://localhost:2409/api/auctions/${auctionId}/register`, {}, {
+      const response = await axios.post(`${API_BASE_URL}/auctions/${auctionId}/register`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.status === 'success') {
@@ -156,7 +157,7 @@ export default function BuyerDashboard() {
     if (!window.confirm('Are you sure you want to cancel this order and restore the items to your cart?')) return;
     try {
       const token = localStorage.getItem('zivora_token');
-      const response = await axios.post(`http://localhost:2409/api/orders/${orderId}/cancel`, {}, {
+      const response = await axios.post(`${API_BASE_URL}/orders/${orderId}/cancel`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.status === 'success') {

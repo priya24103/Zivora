@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import axios from 'axios';
+import { API_BASE_URL } from '../../config/api';
 import { 
   ResponsiveContainer, 
   AreaChart, 
@@ -44,7 +45,7 @@ export default function DashboardOverview() {
   const fetchAnalytics = async () => {
     try {
       const token = localStorage.getItem('zivora_admin_token');
-      const response = await axios.get('http://localhost:2409/api/admin/analytics', {
+      const response = await axios.get(`${API_BASE_URL}/admin/analytics`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.status === 'success') {

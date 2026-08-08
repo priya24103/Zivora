@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -106,7 +107,7 @@ export default function Signup() {
         const idData = new FormData();
         idData.append('file', idProofFile);
         
-        const idRes = await axios.post('http://localhost:2409/api/upload/single', idData, {
+        const idRes = await axios.post(`${API_BASE_URL}/upload/single`, idData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         
@@ -122,7 +123,7 @@ export default function Signup() {
           businessData.append('files', file);
         });
 
-        const businessRes = await axios.post('http://localhost:2409/api/upload/multiple', businessData, {
+        const businessRes = await axios.post(`${API_BASE_URL}/upload/multiple`, businessData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
 
@@ -176,8 +177,8 @@ export default function Signup() {
     }
 
     try {
-      // Connect to port 2409 which is specified in backend's .env configuration
-      const response = await axios.post('http://localhost:2409/api/auth/signup', payload);
+      // Connect to API_BASE_URL
+      const response = await axios.post(`${API_BASE_URL}/auth/signup`, payload);
       
       if (response.data.status === 'success') {
         // Save token to localstorage
