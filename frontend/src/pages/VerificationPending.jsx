@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ShieldAlert, Mail, LogOut, ArrowRight, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 
 export default function VerificationPending() {
   const navigate = useNavigate();
@@ -81,7 +82,7 @@ export default function VerificationPending() {
       setErrorMsg(null);
       setSuccessMsg(null);
 
-      const response = await axios.post('http://localhost:2409/api/auth/verify-email', {
+      const response = await axios.post(`${API_BASE_URL}/auth/verify-email`, {
         email: user.email,
         otp: fullOtp
       });
@@ -117,7 +118,7 @@ export default function VerificationPending() {
       setErrorMsg(null);
       setSuccessMsg(null);
 
-      const response = await axios.post('http://localhost:2409/api/auth/resend-otp', {
+      const response = await axios.post(`${API_BASE_URL}/auth/resend-otp`, {
         email: user.email
       });
 

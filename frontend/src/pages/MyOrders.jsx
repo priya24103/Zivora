@@ -17,8 +17,7 @@ import {
   Star
 } from 'lucide-react';
 import RateSellerModal from '../components/RateSellerModal';
-
-const API_BASE_URL = 'http://localhost:2409/api';
+import { API_BASE_URL } from '../config/api';
 
 const containerVariants = {
   hidden: { opacity: 0 },

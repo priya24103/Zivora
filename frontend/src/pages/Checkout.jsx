@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { ShieldCheck, Sparkles, CreditCard, Lock, ArrowLeft } from 'lucide-react';
-
-const API_BASE = 'http://localhost:2409/api';
+import { API_BASE_URL } from '../config/api';
 
 // Utility function to dynamically load the Razorpay checkout script
 const loadScript = (src) => {
@@ -46,7 +45,7 @@ export default function Checkout() {
 
       if (orderId) {
         // Fetch existing pending Order
-        const response = await axios.get(`${API_BASE}/orders/${orderId}`, {
+        const response = await axios.get(`${API_BASE_URL}/orders/${orderId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
 
@@ -69,7 +68,7 @@ export default function Checkout() {
         }
       } else {
         // Fetch active Cart
-        const response = await axios.get(`${API_BASE}/cart`, {
+        const response = await axios.get(`${API_BASE_URL}/cart`, {
           headers: { Authorization: `Bearer ${token}` }
         });
 
@@ -130,7 +129,7 @@ export default function Checkout() {
 
       // Step 1: Make a POST request to generate the Razorpay Order ID.
       const orderResponse = await axios.post(
-        `${API_BASE}/payment/create-order`,
+        `${API_BASE_URL}/payment/create-order`,
         orderId ? { orderId } : {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -161,7 +160,7 @@ export default function Checkout() {
             setCheckoutLoading(true);
             // Step 3 & 4: capture IDs & signature, post to backend verify along with shippingAddress
             const verifyResponse = await axios.post(
-              `${API_BASE}/payment/verify`,
+              `${API_BASE_URL}/payment/verify`,
               {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
@@ -203,7 +202,7 @@ export default function Checkout() {
               const token = localStorage.getItem('zivora_token');
               if (token && orderId) {
                 await axios.post(
-                  `${API_BASE}/orders/${orderId}/cancel`,
+                  `${API_BASE_URL}/orders/${orderId}/cancel`,
                   {},
                   { headers: { Authorization: `Bearer ${token}` } }
                 );
@@ -232,7 +231,7 @@ export default function Checkout() {
       const token = localStorage.getItem('zivora_token');
       if (token && orderId) {
         await axios.post(
-          `${API_BASE}/orders/${orderId}/cancel`,
+          `${API_BASE_URL}/orders/${orderId}/cancel`,
           {},
           { headers: { Authorization: `Bearer ${token}` } }
         );

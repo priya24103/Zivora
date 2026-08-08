@@ -45,6 +45,7 @@ import { io } from 'socket.io-client';
 import EditListingDrawer from '../components/EditListingDrawer';
 import Messages from './Messages';
 import SellerReviewsModal from '../components/SellerReviewsModal';
+import { SOCKET_URL, API_BASE_URL } from '../config/api';
 
 export default function SellerDashboard() {
   const navigate = useNavigate();
@@ -164,7 +165,7 @@ export default function SellerDashboard() {
     const token = localStorage.getItem('zivora_token');
     
     // Connect to Socket.io
-    socketRef.current = io('http://localhost:2409', {
+    socketRef.current = io(SOCKET_URL, {
       transports: ['websocket'],
       auth: { token }
     });
@@ -328,7 +329,7 @@ export default function SellerDashboard() {
     try {
       setIsCancelling(true);
       const token = localStorage.getItem('zivora_token');
-      const response = await axios.patch(`http://localhost:2409/api/auctions/${auctionId}/cancel`, {}, {
+      const response = await axios.patch(`${API_BASE_URL}/auctions/${auctionId}/cancel`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.status === 'success') {
@@ -381,7 +382,7 @@ export default function SellerDashboard() {
       }
 
       // 1. Fetch inventory
-      const prodRes = await axios.get('http://localhost:2409/api/products/seller', {
+      const prodRes = await axios.get(`${API_BASE_URL}/products/seller`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (prodRes.data.status === 'success') {
@@ -389,7 +390,7 @@ export default function SellerDashboard() {
       }
 
       // 2. Fetch auctions
-      const aucRes = await axios.get('http://localhost:2409/api/auctions/seller', {
+      const aucRes = await axios.get(`${API_BASE_URL}/auctions/seller`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (aucRes.data.status === 'success') {
@@ -397,7 +398,7 @@ export default function SellerDashboard() {
       }
 
       // 3. Fetch RFQs
-      const rfqRes = await axios.get('http://localhost:2409/api/rfq/seller', {
+      const rfqRes = await axios.get(`${API_BASE_URL}/rfq/seller`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (rfqRes.data.status === 'success') {
@@ -437,7 +438,7 @@ export default function SellerDashboard() {
       }
 
       // 4. Fetch conversations
-      const convRes = await axios.get('http://localhost:2409/api/conversations', {
+      const convRes = await axios.get(`${API_BASE_URL}/conversations`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (convRes.data.status === 'success') {
@@ -461,7 +462,7 @@ export default function SellerDashboard() {
 
       // 5. Fetch seller orders for metrics & sales chart
       try {
-        const ordersRes = await axios.get('http://localhost:2409/api/seller/orders', {
+        const ordersRes = await axios.get(`${API_BASE_URL}/seller/orders`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (ordersRes.data.status === 'success') {
@@ -535,7 +536,7 @@ export default function SellerDashboard() {
 
       // 6. Fetch seller customer reviews
       try {
-        const reviewRes = await axios.get('http://localhost:2409/api/reviews/seller-reviews', {
+        const reviewRes = await axios.get(`${API_BASE_URL}/reviews/seller-reviews`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (reviewRes.data.status === 'success') {
@@ -572,7 +573,7 @@ export default function SellerDashboard() {
   const handleUpdateStatus = async (productId, newStatus) => {
     try {
       const token = localStorage.getItem('zivora_token');
-      const response = await axios.patch(`http://localhost:2409/api/products/${productId}/status`, { 
+      const response = await axios.patch(`${API_BASE_URL}/products/${productId}/status`, { 
         status: newStatus 
       }, { 
         headers: { Authorization: `Bearer ${token}` } 
@@ -590,7 +591,7 @@ export default function SellerDashboard() {
   const handleApproveMemo = async (buyerId) => {
     try {
       const token = localStorage.getItem('zivora_token');
-      const response = await axios.put(`http://localhost:2409/api/seller/products/${selectedMemoProduct._id}/approve-memo`, {
+      const response = await axios.put(`${API_BASE_URL}/seller/products/${selectedMemoProduct._id}/approve-memo`, {
         buyerId
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -612,7 +613,7 @@ export default function SellerDashboard() {
     if (!window.confirm('Are you sure you want to remove this listing?')) return;
     try {
       const token = localStorage.getItem('zivora_token');
-      const response = await axios.delete(`http://localhost:2409/api/products/${productId}`, {
+      const response = await axios.delete(`${API_BASE_URL}/products/${productId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.status === 'success') {
@@ -635,7 +636,7 @@ export default function SellerDashboard() {
 
     try {
       const token = localStorage.getItem('zivora_token');
-      const response = await axios.post('http://localhost:2409/api/auctions/create', {
+      const response = await axios.post(`${API_BASE_URL}/auctions/create`, {
         productId: selectedAuctionItem._id,
         startPrice: Number(auctionStartPrice),
         duration: auctionDuration
@@ -666,7 +667,7 @@ export default function SellerDashboard() {
 
     try {
       const token = localStorage.getItem('zivora_token');
-      const response = await axios.post(`http://localhost:2409/api/rfq/${selectedRfq.id}/quote`, {
+      const response = await axios.post(`${API_BASE_URL}/rfq/${selectedRfq.id}/quote`, {
         productId: rfqProductId,
         quotePrice: Number(rfqPriceQuote),
         message: rfqMessage || 'Direct seller offer matching specifications.'
@@ -694,7 +695,7 @@ export default function SellerDashboard() {
     if (!window.confirm("Do you want to retract this offer?")) return;
     try {
       const token = localStorage.getItem('zivora_token');
-      const response = await axios.delete(`http://localhost:2409/api/rfq/${rfqId}/quote`, {
+      const response = await axios.delete(`${API_BASE_URL}/rfq/${rfqId}/quote`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -715,7 +716,7 @@ export default function SellerDashboard() {
 
     try {
       const token = localStorage.getItem('zivora_token');
-      const response = await axios.post('http://localhost:2409/api/conversations/send', {
+      const response = await axios.post(`${API_BASE_URL}/conversations/send`, {
         recipientId: activeConv.recipientId,
         text: replyText
       }, {

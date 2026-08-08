@@ -14,9 +14,7 @@ import {
   CheckCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-
-const API_BASE = 'http://localhost:2409/api';
-const SOCKET_URL = 'http://localhost:2409';
+import { SOCKET_URL, API_BASE_URL } from '../config/api';
 
 export default function Messages() {
   const location = useLocation();
@@ -93,7 +91,7 @@ export default function Messages() {
   const fetchConversations = async () => {
     if (!token) return;
     try {
-      const response = await axios.get(`${API_BASE}/conversations`, {
+      const response = await axios.get(`${API_BASE_URL}/conversations`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -153,7 +151,7 @@ export default function Messages() {
   const markAsRead = async (convId) => {
     if (!token || !convId || String(convId).startsWith('temp_')) return;
     try {
-      await axios.patch(`${API_BASE}/conversations/${convId}/read`, {}, {
+      await axios.patch(`${API_BASE_URL}/conversations/${convId}/read`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setConversations(prev => prev.map(c => c._id === convId ? { ...c, unread: false } : c));
@@ -193,7 +191,7 @@ export default function Messages() {
     setMessages(prev => [...prev, optimisticMsg]);
 
     try {
-      const response = await axios.post(`${API_BASE}/conversations/send`, {
+      const response = await axios.post(`${API_BASE_URL}/conversations/send`, {
         recipientId: otherUser._id,
         text: messageText
       }, {

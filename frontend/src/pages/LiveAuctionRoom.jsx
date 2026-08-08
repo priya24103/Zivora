@@ -15,8 +15,7 @@ import {
   Award
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-
-const SOCKET_URL = 'http://localhost:2409';
+import { SOCKET_URL, API_BASE_URL } from '../config/api';
 
 export default function LiveAuctionRoom() {
   const { id: auctionId } = useParams();
@@ -49,7 +48,7 @@ export default function LiveAuctionRoom() {
   const fetchAuctionDetails = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${SOCKET_URL}/api/auctions/${auctionId}`, {
+      const res = await axios.get(`${API_BASE_URL}/auctions/${auctionId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data.status === 'success') {

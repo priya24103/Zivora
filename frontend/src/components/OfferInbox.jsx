@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Handshake, MessageCircle, AlertCircle, Sparkles, X, ChevronRight } from 'lucide-react';
 import axios from 'axios';
 import OfferThreadView from './OfferThreadView';
-
-const API_BASE = 'http://localhost:2409/api';
+import { API_BASE_URL } from '../config/api';
 
 export default function OfferInbox() {
   const [offers, setOffers] = useState([]);
@@ -25,7 +24,7 @@ export default function OfferInbox() {
         return;
       }
 
-      const response = await axios.get(`${API_BASE}/offers/inbox`, {
+      const response = await axios.get(`${API_BASE_URL}/offers/inbox`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 

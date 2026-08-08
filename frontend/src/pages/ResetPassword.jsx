@@ -3,8 +3,7 @@ import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { Lock, Eye, EyeOff, CheckCircle2, AlertCircle, ArrowRight, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
-
-const API_BASE_URL = 'http://localhost:2409/api';
+import { API_BASE_URL } from '../config/api';
 
 export default function ResetPassword() {
   const navigate = useNavigate();

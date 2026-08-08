@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 
 export default function AddProduct() {
   const navigate = useNavigate();
@@ -139,7 +140,7 @@ export default function AddProduct() {
     });
 
     try {
-      const res = await axios.post('http://localhost:2409/api/upload/multiple', formData, {
+      const res = await axios.post(`${API_BASE_URL}/upload/multiple`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
@@ -238,7 +239,7 @@ export default function AddProduct() {
     const payload = { ...basePayload, ...specPayload };
 
     try {
-      const res = await axios.post('http://localhost:2409/api/products/create', payload, {
+      const res = await axios.post(`${API_BASE_URL}/products/create`, payload, {
         headers: {
           Authorization: `Bearer ${token}`
         }

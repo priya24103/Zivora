@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Gavel, FileText, Clock, TrendingUp, Award } from 'lucide-react';
 import { motion } from 'motion/react';
 import axios from 'axios';
+import { API_BASE_URL } from '../../config/api';
 
 export default function AuctionsAndRfqs() {
   const [activeTab, setActiveTab] = useState('auctions');
@@ -36,10 +37,10 @@ export default function AuctionsAndRfqs() {
     try {
       const token = localStorage.getItem('zivora_admin_token');
       const [auctionsRes, rfqsRes] = await Promise.all([
-        axios.get('http://localhost:2409/api/admin/auctions', {
+        axios.get(`${API_BASE_URL}/admin/auctions`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get('http://localhost:2409/api/admin/rfqs', {
+        axios.get(`${API_BASE_URL}/admin/rfqs`, {
           headers: { Authorization: `Bearer ${token}` }
         })
       ]);

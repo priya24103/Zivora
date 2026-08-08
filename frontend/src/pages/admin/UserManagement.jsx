@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, ShieldAlert, CheckCircle, Ban, AlertCircle, MoreHorizontal, UserCheck, UserX } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
+import { API_BASE_URL } from '../../config/api';
 
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
@@ -15,8 +16,8 @@ export default function UserManagement() {
     try {
       const token = localStorage.getItem('zivora_admin_token');
       const url = roleFilter === 'all' 
-        ? 'http://localhost:2409/api/admin/users' 
-        : `http://localhost:2409/api/admin/users?role=${roleFilter}`;
+        ? `${API_BASE_URL}/admin/users` 
+        : `${API_BASE_URL}/admin/users?role=${roleFilter}`;
 
       const response = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` }
@@ -50,7 +51,7 @@ export default function UserManagement() {
     try {
       const token = localStorage.getItem('zivora_admin_token');
       const response = await axios.put(
-        `http://localhost:2409/api/admin/users/${userId}/status`,
+        `${API_BASE_URL}/admin/users/${userId}/status`,
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );

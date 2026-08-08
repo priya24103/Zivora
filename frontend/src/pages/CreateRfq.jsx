@@ -16,8 +16,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
-
-const API_BASE = 'http://localhost:2409/api';
+import { API_BASE_URL } from '../config/api';
 
 export default function CreateRfq() {
   const navigate = useNavigate();
@@ -50,7 +49,7 @@ export default function CreateRfq() {
 
     try {
       setRfqsLoading(true);
-      const response = await axios.get(`${API_BASE}/rfqs/my-requests`, {
+      const response = await axios.get(`${API_BASE_URL}/rfqs/my-requests`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.status === 'success') {
@@ -93,7 +92,7 @@ export default function CreateRfq() {
         deadline: new Date(deadline).toISOString()
       };
 
-      const response = await axios.post(`${API_BASE}/rfq/create`, payload, {
+      const response = await axios.post(`${API_BASE_URL}/rfq/create`, payload, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -122,7 +121,7 @@ export default function CreateRfq() {
 
     try {
       setAcceptingQuoteId(quoteId);
-      const response = await axios.post(`${API_BASE}/rfqs/${rfqId}/accept-quote`, {
+      const response = await axios.post(`${API_BASE_URL}/rfqs/${rfqId}/accept-quote`, {
         quoteId
       }, {
         headers: { Authorization: `Bearer ${token}` }

@@ -15,7 +15,7 @@ import {
   Crown
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:2409/api';
+import { API_BASE_URL } from '../config/api';
 import HeartButton from '../components/HeartButton';
 
 const SHAPES = ['Round', 'Princess', 'Cushion', 'Emerald', 'Oval', 'Radiant', 'Pear', 'Marquise', 'Asscher', 'Heart'];
@@ -45,7 +45,7 @@ export default function Products() {
     const token = localStorage.getItem('zivora_token');
     if (!token) return;
     try {
-      const response = await axios.get(`${API_BASE}/wishlist`, {
+      const response = await axios.get(`${API_BASE_URL}/wishlist`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.status === 'success') {
@@ -69,7 +69,7 @@ export default function Products() {
     }
 
     try {
-      const response = await axios.post(`${API_BASE}/wishlist/toggle`, {
+      const response = await axios.post(`${API_BASE_URL}/wishlist/toggle`, {
         productId
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -176,7 +176,7 @@ export default function Products() {
         queryParams.page = currentPage;
         queryParams.limit = 12;
 
-        const response = await axios.get(`${API_BASE}/products`, { params: queryParams });
+        const response = await axios.get(`${API_BASE_URL}/products`, { params: queryParams });
         
         if (response.data.status === 'success') {
           setProducts(response.data.data.products);

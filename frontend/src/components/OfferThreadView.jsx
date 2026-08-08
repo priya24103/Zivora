@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { Send, Check, X, CreditCard, Handshake, MessageSquare, Sparkles, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-
-const API_BASE = 'http://localhost:2409/api';
+import { API_BASE_URL } from '../config/api';
 
 export default function OfferThreadView({ offer, user, onActionSuccess }) {
   const navigate = useNavigate();
@@ -40,7 +39,7 @@ export default function OfferThreadView({ offer, user, onActionSuccess }) {
       };
 
       const response = await axios.put(
-        `${API_BASE}/offers/${offer._id}/action`,
+        `${API_BASE_URL}/offers/${offer._id}/action`,
         payload,
         {
           headers: { Authorization: `Bearer ${token}` }
@@ -85,7 +84,7 @@ export default function OfferThreadView({ offer, user, onActionSuccess }) {
       // at the agreed offer amount (in a real B2B app, checkout would support negotiated contracts,
       // here we add to cart as the bridge mechanism)
       await axios.post(
-        `${API_BASE}/cart/add`,
+        `${API_BASE_URL}/cart/add`,
         { productId: offer.productId._id || offer.productId, quantity: 1 },
         { headers: { Authorization: `Bearer ${token}` } }
       );

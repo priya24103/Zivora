@@ -14,8 +14,7 @@ import {
   ExternalLink 
 } from 'lucide-react';
 import axios from 'axios';
-
-const API_BASE = 'http://localhost:2409/api';
+import { API_BASE_URL } from '../config/api';
 
 export default function MyRFQs() {
   const navigate = useNavigate();
@@ -41,7 +40,7 @@ export default function MyRFQs() {
 
     try {
       setLoading(true);
-      const response = await axios.get(`${API_BASE}/rfqs/my-requests`, {
+      const response = await axios.get(`${API_BASE_URL}/rfqs/my-requests`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.status === 'success') {
@@ -65,7 +64,7 @@ export default function MyRFQs() {
 
     try {
       setAcceptingQuoteId(quoteId);
-      const response = await axios.post(`${API_BASE}/rfqs/${rfqId}/accept-quote`, {
+      const response = await axios.post(`${API_BASE_URL}/rfqs/${rfqId}/accept-quote`, {
         quoteId
       }, {
         headers: { Authorization: `Bearer ${token}` }

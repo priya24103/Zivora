@@ -3,8 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { Trash2, ShoppingBag, ArrowRight, Sparkles, ShieldCheck } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-
-const API_BASE = 'http://localhost:2409/api';
+import { API_BASE_URL } from '../config/api';
 
 export default function Cart() {
   const navigate = useNavigate();
@@ -35,7 +34,7 @@ export default function Cart() {
       if (!token) return;
 
       setLoadingOrders(true);
-      const response = await axios.get(`${API_BASE}/orders/my-orders`, {
+      const response = await axios.get(`${API_BASE_URL}/orders/my-orders`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.status === 'success') {
@@ -53,7 +52,7 @@ export default function Cart() {
             let cancelledAny = false;
             for (const order of standardPendingOrders) {
               try {
-                await axios.post(`${API_BASE}/orders/${order._id}/cancel`, {}, {
+                await axios.post(`${API_BASE_URL}/orders/${order._id}/cancel`, {}, {
                   headers: { Authorization: `Bearer ${token}` }
                 });
                 cancelledAny = true;
@@ -64,7 +63,7 @@ export default function Cart() {
             if (cancelledAny) {
               // Re-fetch cart and pending orders since items were restored to bag
               await fetchCart();
-              const updatedResponse = await axios.get(`${API_BASE}/orders/my-orders`, {
+              const updatedResponse = await axios.get(`${API_BASE_URL}/orders/my-orders`, {
                 headers: { Authorization: `Bearer ${token}` }
               });
               if (updatedResponse.data.status === 'success') {
@@ -100,7 +99,7 @@ export default function Cart() {
     if (!window.confirm('Are you sure you want to cancel this pending checkout and restore the items to your bag?')) return;
     try {
       const token = localStorage.getItem('zivora_token');
-      const response = await axios.post(`${API_BASE}/orders/${orderId}/cancel`, {}, {
+      const response = await axios.post(`${API_BASE_URL}/orders/${orderId}/cancel`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.status === 'success') {

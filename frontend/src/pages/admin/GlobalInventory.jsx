@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Diamond } from 'lucide-react';
 import { motion } from 'motion/react';
 import axios from 'axios';
+import { API_BASE_URL } from '../../config/api';
 
 export default function GlobalInventory() {
   const [products, setProducts] = useState([]);
@@ -11,7 +12,7 @@ export default function GlobalInventory() {
   const fetchProducts = async () => {
     try {
       const token = localStorage.getItem('zivora_admin_token');
-      const response = await axios.get('http://localhost:2409/api/admin/products', {
+      const response = await axios.get(`${API_BASE_URL}/admin/products`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.status === 'success') {

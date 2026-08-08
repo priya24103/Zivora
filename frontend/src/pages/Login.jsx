@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, ArrowRight, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -20,8 +21,8 @@ export default function Login() {
     setSuccessMsg('');
 
     try {
-      // Direct connection to port 2409 configured in the backend environment
-      const response = await axios.post('http://localhost:2409/api/auth/login', { 
+      // Direct connection to API_BASE_URL
+      const response = await axios.post(`${API_BASE_URL}/auth/login`, { 
         email, 
         password 
       });
