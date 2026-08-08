@@ -33,7 +33,8 @@ export default function Signup() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   
-  // Seller Profile State
+  // Business & eKYC State
+  const [companyName, setCompanyName] = useState('');
   const [panNumber, setPanNumber] = useState('');
   const [gstNumber, setGstNumber] = useState('');
   const [businessProofFiles, setBusinessProofFiles] = useState([]);
@@ -89,63 +90,61 @@ export default function Signup() {
       return;
     }
 
+    if (!panNumber || !gstNumber) {
+      setErrorMsg('PAN and GST Numbers are required for B2B verification');
+      setLoading(false);
+      return;
+    }
+
     let finalIdUrl = idProofUrl;
     let finalBusinessUrls = businessProofUrls;
 
     // Secure Cloudinary Upload Pipeline
-    if (role === 'seller') {
-      if (!panNumber || !gstNumber) {
-        setErrorMsg('PAN and GST Numbers are required for seller accounts');
+    try {
+      // 1. Upload ID Proof to Cloudinary via backend
+      if (idProofFile) {
+        const idData = new FormData();
+        idData.append('file', idProofFile);
+        
+        const idRes = await axios.post('http://localhost:2409/api/upload/single', idData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        
+        if (idRes.data.status === 'success') {
+          finalIdUrl = idRes.data.url;
+        }
+      }
+
+      // 2. Upload Multiple Business Proofs to Cloudinary via backend
+      if (businessProofFiles && businessProofFiles.length > 0) {
+        const businessData = new FormData();
+        businessProofFiles.forEach(file => {
+          businessData.append('files', file);
+        });
+
+        const businessRes = await axios.post('http://localhost:2409/api/upload/multiple', businessData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+
+        if (businessRes.data.status === 'success') {
+          finalBusinessUrls = businessRes.data.urls;
+        }
+      }
+    } catch (uploadErr) {
+      console.error('Live Cloudinary Upload failed:', uploadErr);
+      
+      // If the backend server is running but returns an error (e.g. Cloudinary invalid credentials)
+      if (uploadErr.response) {
+        const errMsg = uploadErr.response.data?.message || 'Invalid Cloudinary credentials in your backend .env file.';
+        setErrorMsg(`Cloudinary Upload Failed: ${errMsg}`);
         setLoading(false);
         return;
       }
-
-      try {
-        // 1. Upload ID Proof to Cloudinary via backend
-        if (idProofFile) {
-          const idData = new FormData();
-          idData.append('file', idProofFile);
-          
-          const idRes = await axios.post('http://localhost:2409/api/upload/single', idData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-          });
-          
-          if (idRes.data.status === 'success') {
-            finalIdUrl = idRes.data.url;
-          }
-        }
-
-        // 2. Upload Multiple Business Proofs to Cloudinary via backend
-        if (businessProofFiles && businessProofFiles.length > 0) {
-          const businessData = new FormData();
-          businessProofFiles.forEach(file => {
-            businessData.append('files', file);
-          });
-
-          const businessRes = await axios.post('http://localhost:2409/api/upload/multiple', businessData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-          });
-
-          if (businessRes.data.status === 'success') {
-            finalBusinessUrls = businessRes.data.urls;
-          }
-        }
-      } catch (uploadErr) {
-        console.error('Live Cloudinary Upload failed:', uploadErr);
-        
-        // If the backend server is running but returns an error (e.g. Cloudinary invalid credentials)
-        if (uploadErr.response) {
-          const errMsg = uploadErr.response.data?.message || 'Invalid Cloudinary credentials in your backend .env file.';
-          setErrorMsg(`Cloudinary Upload Failed: ${errMsg}`);
-          setLoading(false);
-          return;
-        }
-        
-        // Only fall back to simulated URLs if the backend server is completely offline/unreachable
-        console.warn('Backend server is offline. Falling back to sandbox URLs.');
-        finalIdUrl = `https://res.cloudinary.com/demo/image/upload/v1580229/sample_id_proof.jpg`;
-        finalBusinessUrls = [`https://res.cloudinary.com/demo/image/upload/v1580229/sample_business_proof.jpg`];
-      }
+      
+      // Only fall back to simulated URLs if the backend server is completely offline/unreachable
+      console.warn('Backend server is offline. Falling back to sandbox URLs.');
+      finalIdUrl = `https://res.cloudinary.com/demo/image/upload/v1580229/sample_id_proof.jpg`;
+      finalBusinessUrls = [`https://res.cloudinary.com/demo/image/upload/v1580229/sample_business_proof.jpg`];
     }
 
     // Dynamic payload structure
@@ -154,11 +153,21 @@ export default function Signup() {
       email,
       phone,
       password,
-      role
+      role,
+      company: companyName
     };
 
     if (role === 'seller') {
       payload.sellerProfile = {
+        companyName,
+        panNumber: panNumber.toUpperCase(),
+        gstNumber: gstNumber.toUpperCase(),
+        businessProofUrl: finalBusinessUrls,
+        idProofUrl: finalIdUrl
+      };
+    } else if (role === 'buyer') {
+      payload.buyerProfile = {
+        companyName, // Optional for buyer
         panNumber: panNumber.toUpperCase(),
         gstNumber: gstNumber.toUpperCase(),
         businessProofUrl: finalBusinessUrls,
@@ -427,9 +436,9 @@ export default function Signup() {
               </div>
             </div>
 
-            {/* Dynamic Seller Profile Fields */}
+            {/* Dynamic B2B Profile & eKYC Fields */}
             <AnimatePresence initial={false}>
-              {role === 'seller' && (
+              {(role === 'seller' || role === 'buyer') && (
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
@@ -441,13 +450,35 @@ export default function Signup() {
                   
                   <div className="flex items-center gap-2 mb-2 text-[#A48374]">
                     <Briefcase className="w-4 h-4" />
-                    <span className="text-xs uppercase tracking-[0.2em] font-medium">Business Information</span>
+                    <span className="text-xs uppercase tracking-[0.2em] font-medium">
+                      B2B Trade Verification ({role === 'seller' ? 'Seller eKYC' : 'Buyer eKYC'})
+                    </span>
+                  </div>
+
+                  {/* Company Name Field */}
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#3A2D28] pl-2">
+                      Company Name {role === 'buyer' ? '(Optional)' : '*'}
+                    </label>
+                    <input 
+                      type="text" 
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      placeholder={role === 'seller' ? "e.g. Royal Diamonds Wholesale Ltd." : "e.g. Apex Jewels (Optional)"}
+                      className="w-full px-4 py-3 rounded-full text-sm focus:outline-none focus:ring-2 transition-shadow"
+                      style={{ 
+                        backgroundColor: '#F1EDE6', 
+                        color: '#3A2D28',
+                        '--tw-ring-color': '#CBAD8D'
+                      }}
+                      required={role === 'seller'}
+                    />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="block text-[11px] font-bold uppercase tracking-wider text-[#3A2D28] pl-2">
-                        PAN Number
+                        PAN Number *
                       </label>
                       <input 
                         type="text" 
@@ -461,13 +492,13 @@ export default function Signup() {
                           color: '#3A2D28',
                           '--tw-ring-color': '#CBAD8D'
                         }}
-                        required={role === 'seller'}
+                        required
                       />
                     </div>
 
                     <div className="space-y-1">
                       <label className="block text-[11px] font-bold uppercase tracking-wider text-[#3A2D28] pl-2">
-                        GST Number
+                        GST Number *
                       </label>
                       <input 
                         type="text" 
@@ -481,12 +512,12 @@ export default function Signup() {
                           color: '#3A2D28',
                           '--tw-ring-color': '#CBAD8D'
                         }}
-                        required={role === 'seller'}
+                        required
                       />
                     </div>
                   </div>
 
-                  {/* Documents Uploader Mock */}
+                  {/* Documents Uploader */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
                     
                     {/* Business Proof */}
