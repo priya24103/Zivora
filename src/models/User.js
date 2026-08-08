@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 
 const sellerProfileSchema = new mongoose.Schema({
-  panNumber: { type: String, trim: true, default: null },
+  companyName: { type: String, trim: true, default: '' },
+  panNumber: { type: String, required: [true, 'Pan number is required'], trim: true, default: null },
   gstNumber: { type: String, trim: true, default: null },
   businessProofUrl: [{ type: String }],
   idProofUrl: { type: String, default: null },
@@ -22,6 +23,20 @@ const sellerProfileSchema = new mongoose.Schema({
     type: Number,
     default: 0
   }
+}, { _id: false });
+
+const buyerProfileSchema = new mongoose.Schema({
+  companyName: { type: String, trim: true, default: '' }, // Optional for buyers
+  panNumber: { type: String, required: [true, 'Pan number is required'], trim: true, default: null },
+  gstNumber: { type: String, trim: true, default: null },
+  businessProofUrl: [{ type: String }],
+  idProofUrl: { type: String, default: null },
+  kycStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending'
+  },
+  kycRemarks: { type: String, default: '' }
 }, { _id: false });
 
 const userSchema = new mongoose.Schema({
@@ -65,15 +80,14 @@ const userSchema = new mongoose.Schema({
     enum: ['active', 'suspended', 'pending_kyc'],
     default: 'active'
   },
-  company: {
-    type: String,
-    trim: true,
-    default: ''
-  },
   sellerProfile: {
     type: sellerProfileSchema,
     // Makes the profile mandatory only if the user is a seller
     required: function () { return this.role === 'seller'; }
+  },
+  buyerProfile: {
+    type: buyerProfileSchema,
+    required: function () { return this.role === 'buyer'; }
   },
   emailVerificationOtp: {
     type: String,
