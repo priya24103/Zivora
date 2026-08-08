@@ -204,7 +204,7 @@ exports.toggleUserStatus = async (req, res, next) => {
 exports.getProducts = async (req, res, next) => {
   try {
     const products = await Product.find()
-      .populate('sellerId', 'name company email phone')
+      .populate('sellerId', 'name email phone sellerProfile')
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -228,8 +228,8 @@ exports.getAuctions = async (req, res, next) => {
   try {
     const auctions = await Auction.find()
       .populate('productId')
-      .populate('highestBidder', 'name email company')
-      .populate('sellerId', 'name email company')
+      .populate('highestBidder', 'name email buyerProfile')
+      .populate('sellerId', 'name email sellerProfile')
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -252,8 +252,8 @@ exports.getAuctions = async (req, res, next) => {
 exports.getRfqs = async (req, res, next) => {
   try {
     const rfqs = await RFQ.find()
-      .populate('buyerId', 'name email company')
-      .populate('winnerSeller', 'name email company')
+      .populate('buyerId', 'name email buyerProfile')
+      .populate('winnerSeller', 'name email sellerProfile')
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -275,17 +275,43 @@ exports.getRfqs = async (req, res, next) => {
  */
 exports.getKycRequests = async (req, res, next) => {
   try {
-    const users = await User.find({
-      role: 'seller',
-      isVerified: true,
-      'sellerProfile.kycStatus': 'pending'
-    }).sort({ createdAt: 1 }); // Process in order of signup
+    const { role } = req.query;
+
+    const [sellers, buyers] = await Promise.all([
+      User.find({
+        role: 'seller',
+        isVerified: true,
+        'sellerProfile.kycStatus': 'pending'
+      }).sort({ createdAt: 1 }),
+      User.find({
+        role: 'buyer',
+        isVerified: true,
+        'buyerProfile.kycStatus': 'pending'
+      }).sort({ createdAt: 1 })
+    ]);
+
+    if (role === 'seller') {
+      return res.status(200).json({
+        status: 'success',
+        results: sellers.length,
+        data: { sellers }
+      });
+    }
+
+    if (role === 'buyer') {
+      return res.status(200).json({
+        status: 'success',
+        results: buyers.length,
+        data: { buyers }
+      });
+    }
 
     res.status(200).json({
       status: 'success',
-      results: users.length,
+      results: sellers.length + buyers.length,
       data: {
-        sellers: users
+        sellers,
+        buyers
       }
     });
   } catch (error) {
@@ -294,7 +320,7 @@ exports.getKycRequests = async (req, res, next) => {
 };
 
 /**
- * @desc    Approve or reject a seller's KYC document application
+ * @desc    Approve or reject a user's (seller or buyer) KYC document application
  * @route   PUT /api/admin/kyc/:userId/action
  * @access  Admin Only
  */
@@ -310,38 +336,36 @@ exports.takeKycAction = async (req, res, next) => {
       });
     }
 
-    const seller = await User.findById(userId);
-    if (!seller) {
+    const user = await User.findById(userId);
+    if (!user) {
       return res.status(404).json({
         status: 'error',
-        message: 'Seller user not found'
+        message: 'User not found'
       });
     }
 
-    if (!seller.sellerProfile) {
-      seller.sellerProfile = {};
+    if (user.role === 'seller') {
+      if (!user.sellerProfile) user.sellerProfile = {};
+      user.sellerProfile.kycStatus = action === 'approve' ? 'approved' : 'rejected';
+    } else if (user.role === 'buyer') {
+      if (!user.buyerProfile) user.buyerProfile = {};
+      user.buyerProfile.kycStatus = action === 'approve' ? 'approved' : 'rejected';
     }
 
-    if (action === 'approve') {
-      seller.sellerProfile.kycStatus = 'approved';
-    } else {
-      seller.sellerProfile.kycStatus = 'rejected';
-    }
-
-    await seller.save();
+    await user.save();
 
     // Trigger automated email status notification
     sendKycResultEmail(
-      seller.email,
+      user.email,
       action === 'approve' ? 'Approved' : 'Rejected',
-      seller.name
+      user.name
     ).catch(err => console.error('Failed to send eKYC result notification email:', err));
 
     res.status(200).json({
       status: 'success',
-      message: `KYC application successfully ${action === 'approve' ? 'approved' : 'rejected'}.`,
+      message: `${user.role.toUpperCase()} KYC application successfully ${action === 'approve' ? 'approved' : 'rejected'}.`,
       data: {
-        seller
+        user
       }
     });
   } catch (error) {

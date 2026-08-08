@@ -3,6 +3,7 @@ const router = express.Router();
 const productController = require('../controllers/product.controller');
 const { protect, restrictTo } = require('../middlewares/auth.middleware');
 const sellerGuard = require('../middlewares/sellerGuard');
+const buyerGuard = require('../middlewares/buyerGuard');
 
 // POST /api/products/create - Create a product listing
 // Protected by JWT auth, restricted to fully verified sellers
@@ -17,8 +18,8 @@ router.get('/', productController.getAllProducts);
 // GET /api/products/:id - Get a single product by ID
 router.get('/:id', productController.getProductById);
 
-// POST /api/products/:id/request-memo - Request 48h memo (buyer)
-router.post('/:id/request-memo', protect, productController.requestMemo);
+// POST /api/products/:id/request-memo - Request 48h memo (verified B2B buyer only)
+router.post('/:id/request-memo', protect, buyerGuard, productController.requestMemo);
 
 // PATCH /api/products/:id/status - Update status (seller only)
 router.patch('/:id/status', protect, restrictTo('seller'), productController.updateProductStatus);

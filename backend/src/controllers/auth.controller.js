@@ -19,7 +19,7 @@ const generateResetToken = (userId, email) => {
 // @access  Public
 exports.signup = async (req, res, next) => {
   try {
-    const { name, email, password, phone, role, sellerProfile } = req.body;
+    const { name, email, password, phone, role, sellerProfile, buyerProfile } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -55,7 +55,7 @@ exports.signup = async (req, res, next) => {
         });
       }
 
-      const { panNumber, gstNumber, businessProofUrl, idProofUrl } = sellerProfile;
+      const { companyName, panNumber, gstNumber, businessProofUrl, idProofUrl } = sellerProfile;
       if (!panNumber || !gstNumber) {
         return res.status(400).json({
           status: 'error',
@@ -64,6 +64,30 @@ exports.signup = async (req, res, next) => {
       }
 
       userData.sellerProfile = {
+        companyName: companyName || req.body.company || '',
+        panNumber,
+        gstNumber,
+        businessProofUrl: businessProofUrl || [],
+        idProofUrl: idProofUrl || null,
+        kycStatus: 'pending',
+        kycRemarks: ''
+      };
+    }
+
+    // If role is buyer, validate and inject buyer eKYC profile
+    if (role === 'buyer') {
+      const bProfile = buyerProfile || req.body;
+      const { companyName, panNumber, gstNumber, businessProofUrl, idProofUrl } = bProfile;
+
+      if (!panNumber || !gstNumber) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'PAN Number and GST Number are required for Buyer business registration'
+        });
+      }
+
+      userData.buyerProfile = {
+        companyName: companyName || req.body.company || '', // Optional company name
         panNumber,
         gstNumber,
         businessProofUrl: businessProofUrl || [],
