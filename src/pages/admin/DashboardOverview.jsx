@@ -44,7 +44,7 @@ export default function DashboardOverview() {
 
   const fetchAnalytics = async () => {
     try {
-      const token = localStorage.getItem('zivora_admin_token');
+      const token = localStorage.getItem('zivora_token') || localStorage.getItem('zivora_admin_token');
       const response = await axios.get(`${API_BASE_URL}/admin/analytics`, {
         headers: { Authorization: `Bearer ${token}` }
       });

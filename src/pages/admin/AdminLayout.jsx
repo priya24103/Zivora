@@ -21,25 +21,32 @@ export default function AdminLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('zivora_admin_user');
-    const storedToken = localStorage.getItem('zivora_admin_token');
+    const storedUser = localStorage.getItem('zivora_user') || localStorage.getItem('zivora_admin_user');
+    const storedToken = localStorage.getItem('zivora_token') || localStorage.getItem('zivora_admin_token');
 
     if (!storedUser || !storedToken) {
-      navigate('/admin/login');
+      navigate('/login');
       return;
     }
 
     try {
-      setAdminUser(JSON.parse(storedUser));
+      const user = JSON.parse(storedUser);
+      if (user.role !== 'admin') {
+        navigate('/login');
+        return;
+      }
+      setAdminUser(user);
     } catch (e) {
-      navigate('/admin/login');
+      navigate('/login');
     }
   }, [navigate]);
 
   const handleLogout = () => {
+    localStorage.removeItem('zivora_token');
+    localStorage.removeItem('zivora_user');
     localStorage.removeItem('zivora_admin_token');
     localStorage.removeItem('zivora_admin_user');
-    navigate('/admin/login');
+    navigate('/login');
   };
 
   const navLinks = [

@@ -48,9 +48,9 @@ export default function AdminKYC() {
   const fetchKycQueue = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('zivora_admin_token');
+      const token = localStorage.getItem('zivora_token') || localStorage.getItem('zivora_admin_token');
       if (!token) {
-        navigate('/admin/login');
+        navigate('/login');
         return;
       }
 
@@ -77,9 +77,9 @@ export default function AdminKYC() {
   const handleKycAction = async (userId, action) => {
     try {
       setActionLoading(true);
-      const token = localStorage.getItem('zivora_admin_token');
+      const token = localStorage.getItem('zivora_token') || localStorage.getItem('zivora_admin_token');
       if (!token) {
-        navigate('/admin/login');
+        navigate('/login');
         return;
       }
 
