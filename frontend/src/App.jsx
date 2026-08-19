@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -31,7 +31,6 @@ import Negotiations from './pages/Negotiations';
 import { CartProvider } from './context/CartContext';
 
 // Admin imports
-import AdminLogin from './pages/admin/AdminLogin';
 import AdminLayout from './pages/admin/AdminLayout';
 import DashboardOverview from './pages/admin/DashboardOverview';
 import UserManagement from './pages/admin/UserManagement';
@@ -44,7 +43,7 @@ function AppContent() {
   const isAdminRoute = location.pathname.startsWith('/admin');
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('zivora_user');
+    const storedUser = localStorage.getItem('zivora_user') || localStorage.getItem('zivora_admin_user');
     if (storedUser) {
       try {
         const user = JSON.parse(storedUser);
@@ -90,7 +89,7 @@ function AppContent() {
           <Route path="/negotiations" element={<Negotiations />} />
 
           {/* Admin routes */}
-          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin/login" element={<Navigate to="/login" replace />} />
           <Route path="/admin" element={<AdminLayout />}>
             <Route path="dashboard" element={<DashboardOverview />} />
             <Route path="users" element={<UserManagement />} />

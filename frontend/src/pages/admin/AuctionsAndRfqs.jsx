@@ -35,7 +35,7 @@ export default function AuctionsAndRfqs() {
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('zivora_admin_token');
+      const token = localStorage.getItem('zivora_token') || localStorage.getItem('zivora_admin_token');
       const [auctionsRes, rfqsRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/admin/auctions`, {
           headers: { Authorization: `Bearer ${token}` }

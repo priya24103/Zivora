@@ -14,7 +14,7 @@ export default function UserManagement() {
 
   const fetchUsers = async () => {
     try {
-      const token = localStorage.getItem('zivora_admin_token');
+      const token = localStorage.getItem('zivora_token') || localStorage.getItem('zivora_admin_token');
       const url = roleFilter === 'all' 
         ? `${API_BASE_URL}/admin/users` 
         : `${API_BASE_URL}/admin/users?role=${roleFilter}`;
@@ -49,7 +49,7 @@ export default function UserManagement() {
     setActiveMenuId(null);
 
     try {
-      const token = localStorage.getItem('zivora_admin_token');
+      const token = localStorage.getItem('zivora_token') || localStorage.getItem('zivora_admin_token');
       const response = await axios.put(
         `${API_BASE_URL}/admin/users/${userId}/status`,
         { status: newStatus },
