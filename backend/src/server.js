@@ -26,9 +26,12 @@ const rfqCron = require('./jobs/rfqCron');
 const auctionExpiry = require('./jobs/auctionExpiry');
 const memoExpiry = require('./jobs/memoExpiry');
 
+const { verifySmtpConnection } = require('./utils/sendEmail');
+
 const startServer = async () => {
   try {
     await connectDB();
+    verifySmtpConnection();
     rfqCron.init();
     auctionExpiry.init();
     memoExpiry.init();

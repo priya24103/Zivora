@@ -101,7 +101,11 @@ exports.signup = async (req, res, next) => {
     const user = await User.create(userData);
 
     // Send the verification OTP
-    await sendOtpEmail(user.email, otp);
+    try {
+      await sendOtpEmail(user.email, otp);
+    } catch (mailErr) {
+      console.error('[AUTH] Could not dispatch verification OTP email:', mailErr.message || mailErr);
+    }
 
     // Generate JWT token
     const token = generateToken(user._id);
@@ -288,7 +292,11 @@ exports.resendOtp = async (req, res, next) => {
     await user.save({ validateModifiedOnly: true });
 
     // Trigger email utility
-    await sendOtpEmail(user.email, otp);
+    try {
+      await sendOtpEmail(user.email, otp);
+    } catch (mailErr) {
+      console.error('[AUTH] Could not dispatch resend OTP email:', mailErr.message || mailErr);
+    }
 
     res.status(200).json({
       status: 'success',
@@ -330,7 +338,11 @@ exports.forgotPassword = async (req, res, next) => {
     await user.save({ validateModifiedOnly: true });
 
     // Trigger email utility
-    await sendForgotPasswordOtpEmail(user.email, otp);
+    try {
+      await sendForgotPasswordOtpEmail(user.email, otp);
+    } catch (mailErr) {
+      console.error('[AUTH] Could not dispatch forgot password OTP email:', mailErr.message || mailErr);
+    }
 
     res.status(200).json({
       status: 'success',
