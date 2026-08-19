@@ -3,7 +3,7 @@ const bcrypt = require('bcrypt');
 
 const sellerProfileSchema = new mongoose.Schema({
   companyName: { type: String, trim: true, default: '' },
-  panNumber: { type: String, required: [true, 'Pan number is required'], trim: true, default: null },
+  panNumber: { type: String, trim: true, default: null },
   gstNumber: { type: String, trim: true, default: null },
   businessProofUrl: [{ type: String }],
   idProofUrl: { type: String, default: null },
@@ -27,7 +27,7 @@ const sellerProfileSchema = new mongoose.Schema({
 
 const buyerProfileSchema = new mongoose.Schema({
   companyName: { type: String, trim: true, default: '' }, // Optional for buyers
-  panNumber: { type: String, required: [true, 'Pan number is required'], trim: true, default: null },
+  panNumber: { type: String, trim: true, default: null },
   gstNumber: { type: String, trim: true, default: null },
   businessProofUrl: [{ type: String }],
   idProofUrl: { type: String, default: null },
@@ -82,12 +82,11 @@ const userSchema = new mongoose.Schema({
   },
   sellerProfile: {
     type: sellerProfileSchema,
-    // Makes the profile mandatory only if the user is a seller
-    required: function () { return this.role === 'seller'; }
+    required: false
   },
   buyerProfile: {
     type: buyerProfileSchema,
-    required: function () { return this.role === 'buyer'; }
+    required: false
   },
   emailVerificationOtp: {
     type: String,

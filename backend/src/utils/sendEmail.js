@@ -2,12 +2,15 @@ const nodemailer = require('nodemailer');
 
 // Configure Transporter with ethereal SMTP fallbacks for testing
 const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST || process.env.SMTP_HOST || 'smtp.ethereal.email',
+  host: process.env.EMAIL_HOST || process.env.SMTP_HOST || 'smtp.gmail.com',
   port: parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT) || 587,
   secure: (process.env.EMAIL_SECURE || process.env.SMTP_SECURE) === 'true',
   auth: {
-    user: process.env.EMAIL_USER || process.env.SMTP_USER || 'ethereal.user@ethereal.email',
-    pass: process.env.EMAIL_PASS || process.env.SMTP_PASS || 'ethereal_password'
+    user: process.env.EMAIL_USER || process.env.SMTP_USER,
+    pass: process.env.EMAIL_PASS || process.env.SMTP_PASS
+  },
+  tls: {
+    rejectUnauthorized: false
   }
 });
 
@@ -33,17 +36,19 @@ exports.sendOtpEmail = async (email, otp) => {
   `;
 
   try {
-    // Log to console as a developer fail-safe
-    console.log(`[MAIL MOCK] Sending OTP to ${email}: ${otp}`);
+    console.log(`[MAIL] Sending OTP to ${email}: ${otp}`);
     
-    await transporter.sendMail({
-      from: `"Zivora Compliance" <${process.env.EMAIL_USER || process.env.SMTP_USER || 'compliance@zivora.com'}>`,
+    const fromAddress = process.env.EMAIL_USER || process.env.SMTP_USER || 'compliance@zivora.com';
+    const info = await transporter.sendMail({
+      from: `"Zivora Compliance" <${fromAddress}>`,
       to: email,
       subject: 'Zivora Account Verification Code',
       html: htmlContent
     });
+    console.log(`OTP Email sent successfully to ${email}. Message ID: ${info.messageId}`);
+    return info;
   } catch (error) {
-    console.error(`SMTP delivery failed, but OTP logged to console: ${otp}`);
+    console.error(`SMTP delivery failed for OTP to ${email}:`, error);
   }
 };
 
@@ -70,16 +75,19 @@ exports.sendKycResultEmail = async (email, status, name) => {
   `;
 
   try {
-    console.log(`[MAIL MOCK] Sending KYC status to ${email}: ${status}`);
+    console.log(`[MAIL] Sending KYC status to ${email}: ${status}`);
     
-    await transporter.sendMail({
-      from: `"Zivora Compliance" <${process.env.EMAIL_USER || process.env.SMTP_USER || 'compliance@zivora.com'}>`,
+    const fromAddress = process.env.EMAIL_USER || process.env.SMTP_USER || 'compliance@zivora.com';
+    const info = await transporter.sendMail({
+      from: `"Zivora Compliance" <${fromAddress}>`,
       to: email,
       subject: 'Zivora eKYC Verification Result',
       html: htmlContent
     });
+    console.log(`KYC Email sent successfully to ${email}. Message ID: ${info.messageId}`);
+    return info;
   } catch (error) {
-    console.error(`SMTP delivery failed for KYC result email.`);
+    console.error(`SMTP delivery failed for KYC result email to ${email}:`, error);
   }
 };
 
@@ -105,16 +113,19 @@ exports.sendForgotPasswordOtpEmail = async (email, otp) => {
   `;
 
   try {
-    console.log(`[MAIL MOCK] Sending Forgot Password OTP to ${email}: ${otp}`);
+    console.log(`[MAIL] Sending Forgot Password OTP to ${email}: ${otp}`);
     
-    await transporter.sendMail({
-      from: `"Zivora Security" <${process.env.EMAIL_USER || process.env.SMTP_USER || 'security@zivora.com'}>`,
+    const fromAddress = process.env.EMAIL_USER || process.env.SMTP_USER || 'security@zivora.com';
+    const info = await transporter.sendMail({
+      from: `"Zivora Security" <${fromAddress}>`,
       to: email,
       subject: 'Zivora Password Reset Verification Code',
       html: htmlContent
     });
+    console.log(`Password Reset Email sent successfully to ${email}. Message ID: ${info.messageId}`);
+    return info;
   } catch (error) {
-    console.error(`SMTP delivery failed, but Password Reset OTP logged to console: ${otp}`);
+    console.error(`SMTP delivery failed for Password Reset OTP to ${email}:`, error);
   }
 };
 

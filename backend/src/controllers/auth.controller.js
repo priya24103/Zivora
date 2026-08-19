@@ -229,7 +229,7 @@ exports.verifyEmail = async (req, res, next) => {
     user.isVerified = true;
     user.emailVerificationOtp = null;
     user.otpExpiresAt = null;
-    await user.save();
+    await user.save({ validateModifiedOnly: true });
 
     // Generate JWT token
     const token = generateToken(user._id);
@@ -285,7 +285,7 @@ exports.resendOtp = async (req, res, next) => {
 
     user.emailVerificationOtp = otp;
     user.otpExpiresAt = otpExpiresAt;
-    await user.save();
+    await user.save({ validateModifiedOnly: true });
 
     // Trigger email utility
     await sendOtpEmail(user.email, otp);
@@ -327,7 +327,7 @@ exports.forgotPassword = async (req, res, next) => {
 
     user.resetPasswordOtp = otp;
     user.resetPasswordOtpExpiresAt = otpExpiresAt;
-    await user.save();
+    await user.save({ validateModifiedOnly: true });
 
     // Trigger email utility
     await sendForgotPasswordOtpEmail(user.email, otp);
@@ -441,7 +441,7 @@ exports.resetPassword = async (req, res, next) => {
     user.resetPasswordOtp = null;
     user.resetPasswordOtpExpiresAt = null;
 
-    await user.save();
+    await user.save({ validateModifiedOnly: true });
 
     res.status(200).json({
       status: 'success',
