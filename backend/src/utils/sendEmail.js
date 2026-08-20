@@ -29,6 +29,7 @@ const getTransporter = () => {
     tls: {
       rejectUnauthorized: false
     },
+    family: 4, // Force IPv4 to prevent ENETUNREACH on cloud environments (e.g. Render) without IPv6 routes
     connectionTimeout: 15000, // fail fast (15s) instead of the default 2-minute hang
     greetingTimeout: 15000,
     socketTimeout: 15000
