@@ -2,30 +2,22 @@ const nodemailer = require('nodemailer');
 
 /**
  * Creates and returns a Nodemailer transporter configured for localhost & production cloud environments.
+ *
+ * NOTE: We intentionally do NOT use Nodemailer's `service: 'gmail'` shortcut, because it silently
+ * forces port 465 (SSL) regardless of EMAIL_PORT/EMAIL_SECURE. Some hosts (e.g. Render's free tier)
+ * filter outbound port 465 but allow port 587 (STARTTLS), which caused emails to hang until connection
+ * timeout instead of actually connecting. Always honoring the configured host/port/secure avoids that.
  */
 const getTransporter = () => {
   const user = (process.env.EMAIL_USER || process.env.SMTP_USER || '').trim();
   let pass = (process.env.EMAIL_PASS || process.env.SMTP_PASS || '').trim();
-  
+
   // Clean spaces from Google App Password (e.g., 'ukht dajz bndm uxpg' -> 'ukhtdajzbndmuxpg')
   pass = pass.replace(/\s+/g, '');
 
   const host = (process.env.EMAIL_HOST || process.env.SMTP_HOST || 'smtp.gmail.com').toLowerCase();
-
-  // If using Gmail or host includes gmail, use Nodemailer's built-in 'gmail' service 
-  // which handles SSL (port 465) automatically and avoids Port 587 blockages on cloud servers (Render, AWS, Vercel)
-  if (host.includes('gmail') || process.env.EMAIL_SERVICE === 'gmail') {
-    return nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user, pass },
-      tls: {
-        rejectUnauthorized: false
-      }
-    });
-  }
-
-  const port = parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT) || 465;
-  const secure = process.env.EMAIL_SECURE !== undefined 
+  const port = parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT) || 587;
+  const secure = process.env.EMAIL_SECURE !== undefined
     ? (process.env.EMAIL_SECURE === 'true')
     : (port === 465);
 
@@ -36,7 +28,10 @@ const getTransporter = () => {
     auth: { user, pass },
     tls: {
       rejectUnauthorized: false
-    }
+    },
+    connectionTimeout: 15000, // fail fast (15s) instead of the default 2-minute hang
+    greetingTimeout: 15000,
+    socketTimeout: 15000
   });
 };
 
