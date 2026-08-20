@@ -2,8 +2,8 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldAlert, Mail, LogOut, ArrowRight, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
-import axios from 'axios';
 import { API_BASE_URL } from '../config/api';
+import { clearAuthTokens } from '../utils/auth';
 
 export default function VerificationPending() {
   const navigate = useNavigate();
@@ -32,8 +32,7 @@ export default function VerificationPending() {
   ];
 
   const handleLogout = () => {
-    localStorage.removeItem('zivora_token');
-    localStorage.removeItem('zivora_user');
+    clearAuthTokens();
     navigate('/login');
   };
 
