@@ -1,71 +1,52 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
 /**
- * Creates and returns a Nodemailer transporter configured for localhost & production cloud environments.
+ * Email sending via Resend (HTTPS API), not raw SMTP.
  *
- * NOTE: We intentionally do NOT use Nodemailer's `service: 'gmail'` shortcut, because it silently
- * forces port 465 (SSL) regardless of EMAIL_PORT/EMAIL_SECURE. Some hosts (e.g. Render's free tier)
- * filter outbound port 465 but allow port 587 (STARTTLS), which caused emails to hang until connection
- * timeout instead of actually connecting. Always honoring the configured host/port/secure avoids that.
+ * NOTE: We switched away from Nodemailer/SMTP because Render's free tier blocks or
+ * heavily filters outbound SMTP ports (465/587), causing every send to hang until
+ * a connection timeout. Resend sends over HTTPS (port 443), which is never blocked,
+ * so this works reliably in production regardless of host.
  */
-const getTransporter = () => {
-  const user = (process.env.EMAIL_USER || process.env.SMTP_USER || '').trim();
-  let pass = (process.env.EMAIL_PASS || process.env.SMTP_PASS || '').trim();
-
-  // Clean spaces from Google App Password (e.g., 'ukht dajz bndm uxpg' -> 'ukhtdajzbndmuxpg')
-  pass = pass.replace(/\s+/g, '');
-
-  const host = (process.env.EMAIL_HOST || process.env.SMTP_HOST || 'smtp.gmail.com').toLowerCase();
-  const port = parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT) || 587;
-  const secure = process.env.EMAIL_SECURE !== undefined
-    ? (process.env.EMAIL_SECURE === 'true')
-    : (port === 465);
-
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: { user, pass },
-    tls: {
-      rejectUnauthorized: false
-    },
-    family: 4, // Force IPv4 to prevent ENETUNREACH on cloud environments (e.g. Render) without IPv6 routes
-    connectionTimeout: 15000, // fail fast (15s) instead of the default 2-minute hang
-    greetingTimeout: 15000,
-    socketTimeout: 15000
-  });
+const getResendClient = () => {
+  const apiKey = (process.env.RESEND_API_KEY || '').trim();
+  if (!apiKey) {
+    throw new Error('RESEND_API_KEY is not set in environment variables.');
+  }
+  return new Resend(apiKey);
 };
 
 /**
- * Get formatted From header that matches authenticated EMAIL_USER to avoid Gmail 550 rejection
+ * Get formatted From header.
+ * Uses Resend's shared test domain by default; swap to a verified domain
+ * (e.g. no-reply@zivora.com) once you've verified one in the Resend dashboard.
  */
 const getFromAddress = (senderLabel = 'Zivora Compliance') => {
-  const user = (process.env.EMAIL_USER || process.env.SMTP_USER || '').trim();
-  if (user) {
-    return `"${senderLabel}" <${user}>`;
-  }
-  return `"${senderLabel}" <no-reply@zivora.com>`;
+  const fromEmail = (process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev').trim();
+  return `${senderLabel} <${fromEmail}>`;
 };
 
 /**
- * Verify transporter connection diagnostic on boot / test
+ * Verify Resend is configured correctly (checked on server boot).
  */
 exports.verifySmtpConnection = async () => {
   try {
-    const transporter = getTransporter();
-    await transporter.verify();
-    console.log('[SMTP] Connection verified successfully. Ready to send emails.');
+    const apiKey = (process.env.RESEND_API_KEY || '').trim();
+    if (!apiKey) {
+      throw new Error('RESEND_API_KEY is missing.');
+    }
+    console.log('[MAIL] Resend API key found. Ready to send emails.');
     return true;
   } catch (error) {
-    console.error('[SMTP] Connection verification failed:', error.message);
+    console.error('[MAIL] Resend configuration check failed:', error.message);
     return false;
   }
 };
 
 /**
  * Send an OTP code to a user for email verification
- * @param {String} email 
- * @param {String} otp 
+ * @param {String} email
+ * @param {String} otp
  */
 exports.sendOtpEmail = async (email, otp) => {
   const htmlContent = `
@@ -85,28 +66,27 @@ exports.sendOtpEmail = async (email, otp) => {
 
   try {
     console.log(`[MAIL] Dispatching OTP email to ${email}...`);
-    const transporter = getTransporter();
-    const fromAddress = getFromAddress('Zivora Verification');
-    
-    const info = await transporter.sendMail({
-      from: fromAddress,
+    const resend = getResendClient();
+    const { data, error } = await resend.emails.send({
+      from: getFromAddress('Zivora Verification'),
       to: email,
       subject: 'Zivora Account Verification Code',
       html: htmlContent
     });
-    console.log(`[MAIL] OTP Email sent successfully to ${email}. Message ID: ${info.messageId}`);
-    return info;
+    if (error) throw new Error(error.message || JSON.stringify(error));
+    console.log(`[MAIL] OTP Email sent successfully to ${email}. Message ID: ${data.id}`);
+    return data;
   } catch (error) {
-    console.error(`[MAIL] SMTP delivery failed for OTP to ${email}:`, error.message || error);
+    console.error(`[MAIL] Resend delivery failed for OTP to ${email}:`, error.message || error);
     throw error;
   }
 };
 
 /**
  * Send eKYC processing status updates to a seller or buyer
- * @param {String} email 
+ * @param {String} email
  * @param {String} status 'Approved' | 'Rejected'
- * @param {String} name 
+ * @param {String} name
  */
 exports.sendKycResultEmail = async (email, status, name) => {
   const htmlContent = `
@@ -126,27 +106,26 @@ exports.sendKycResultEmail = async (email, status, name) => {
 
   try {
     console.log(`[MAIL] Dispatching KYC status email to ${email}: ${status}`);
-    const transporter = getTransporter();
-    const fromAddress = getFromAddress('Zivora Compliance');
-
-    const info = await transporter.sendMail({
-      from: fromAddress,
+    const resend = getResendClient();
+    const { data, error } = await resend.emails.send({
+      from: getFromAddress('Zivora Compliance'),
       to: email,
       subject: 'Zivora eKYC Verification Result',
       html: htmlContent
     });
-    console.log(`[MAIL] KYC Email sent successfully to ${email}. Message ID: ${info.messageId}`);
-    return info;
+    if (error) throw new Error(error.message || JSON.stringify(error));
+    console.log(`[MAIL] KYC Email sent successfully to ${email}. Message ID: ${data.id}`);
+    return data;
   } catch (error) {
-    console.error(`[MAIL] SMTP delivery failed for KYC result email to ${email}:`, error.message || error);
+    console.error(`[MAIL] Resend delivery failed for KYC result email to ${email}:`, error.message || error);
     throw error;
   }
 };
 
 /**
  * Send an OTP code to a user for password reset
- * @param {String} email 
- * @param {String} otp 
+ * @param {String} email
+ * @param {String} otp
  */
 exports.sendForgotPasswordOtpEmail = async (email, otp) => {
   const htmlContent = `
@@ -166,21 +145,18 @@ exports.sendForgotPasswordOtpEmail = async (email, otp) => {
 
   try {
     console.log(`[MAIL] Dispatching Forgot Password OTP to ${email}...`);
-    const transporter = getTransporter();
-    const fromAddress = getFromAddress('Zivora Security');
-
-    const info = await transporter.sendMail({
-      from: fromAddress,
+    const resend = getResendClient();
+    const { data, error } = await resend.emails.send({
+      from: getFromAddress('Zivora Security'),
       to: email,
       subject: 'Zivora Password Reset Verification Code',
       html: htmlContent
     });
-    console.log(`[MAIL] Password Reset Email sent successfully to ${email}. Message ID: ${info.messageId}`);
-    return info;
+    if (error) throw new Error(error.message || JSON.stringify(error));
+    console.log(`[MAIL] Password Reset Email sent successfully to ${email}. Message ID: ${data.id}`);
+    return data;
   } catch (error) {
-    console.error(`[MAIL] SMTP delivery failed for Password Reset OTP to ${email}:`, error.message || error);
+    console.error(`[MAIL] Resend delivery failed for Password Reset OTP to ${email}:`, error.message || error);
     throw error;
   }
 };
-
-
