@@ -105,6 +105,10 @@ exports.signup = async (req, res, next) => {
       await sendOtpEmail(user.email, otp);
     } catch (mailErr) {
       console.error('[AUTH] Could not dispatch verification OTP email:', mailErr.message || mailErr);
+      return res.status(500).json({
+        status: 'error',
+        message: `Account created, but failed to send verification OTP email: ${mailErr.message || 'SMTP Connection timeout'}. Please try resending the code.`
+      });
     }
 
     // Generate JWT token
@@ -296,6 +300,10 @@ exports.resendOtp = async (req, res, next) => {
       await sendOtpEmail(user.email, otp);
     } catch (mailErr) {
       console.error('[AUTH] Could not dispatch resend OTP email:', mailErr.message || mailErr);
+      return res.status(500).json({
+        status: 'error',
+        message: `Failed to send verification code email: ${mailErr.message || 'SMTP Connection timeout'}. Please try again later.`
+      });
     }
 
     res.status(200).json({
@@ -342,6 +350,10 @@ exports.forgotPassword = async (req, res, next) => {
       await sendForgotPasswordOtpEmail(user.email, otp);
     } catch (mailErr) {
       console.error('[AUTH] Could not dispatch forgot password OTP email:', mailErr.message || mailErr);
+      return res.status(500).json({
+        status: 'error',
+        message: `Failed to send password reset code email: ${mailErr.message || 'SMTP Connection timeout'}. Please try again later.`
+      });
     }
 
     res.status(200).json({
