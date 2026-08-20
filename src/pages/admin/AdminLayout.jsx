@@ -13,6 +13,7 @@ import {
   FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { clearAuthTokens } from '../../utils/auth';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
@@ -42,10 +43,7 @@ export default function AdminLayout() {
   }, [navigate]);
 
   const handleLogout = () => {
-    localStorage.removeItem('zivora_token');
-    localStorage.removeItem('zivora_user');
-    localStorage.removeItem('zivora_admin_token');
-    localStorage.removeItem('zivora_admin_user');
+    clearAuthTokens();
     navigate('/login');
   };
 

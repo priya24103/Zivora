@@ -39,6 +39,7 @@ import {
   Award
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { clearAuthTokens } from '../utils/auth';
 import axios from 'axios';
 import OfferInbox from '../components/OfferInbox';
 import { io } from 'socket.io-client';
@@ -83,8 +84,7 @@ export default function SellerDashboard() {
   const token = localStorage.getItem('zivora_token');
 
   const handleLogout = () => {
-    localStorage.removeItem('zivora_token');
-    localStorage.removeItem('zivora_user');
+    clearAuthTokens();
     navigate('/login');
   };
 
